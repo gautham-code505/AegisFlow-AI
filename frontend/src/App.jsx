@@ -31,7 +31,7 @@ export default function App() {
   } = useTrafficState();
 
   return (
-    <div className="min-h-screen bg-[#0b0f17] text-slate-100 p-4 md:p-6 font-sans">
+    <div className="min-h-screen text-slate-100 p-4 md:p-6 font-sans">
       <div className="max-w-[1600px] mx-auto">
         {/* Header Bar */}
         <Header
@@ -92,7 +92,7 @@ export default function App() {
             AegisFlow AI — SmartAIthon 2026 | Team: Divya K (Frontend), Gautham M A (Lead), Harshadha M (Vision), Jayasuriya S (Decision)
           </div>
           <div className="text-emerald-400/80 font-mono font-medium">
-            100% Offline Edge Operation Verified
+            Offline Edge Architecture Ready
           </div>
         </footer>
       </div>

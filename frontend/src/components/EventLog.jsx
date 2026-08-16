@@ -2,6 +2,15 @@ import React from 'react';
 import { Terminal, Clock, ShieldAlert, Cpu, Activity } from 'lucide-react';
 
 export function EventLog({ events }) {
+  // Normalise an event object to consistent field names.
+  // Supports multiple field name variants that may come from the backend.
+  const normaliseEvent = (item) => ({
+    id: item.id || item.event_id || item.timestamp || Math.random().toString(36),
+    timestamp: item.timestamp || item.created_at || item.time || '',
+    type: (item.type || item.event_type || item.category || 'INFO').toUpperCase(),
+    message: item.message || item.description || item.details || '',
+  });
+
   const getEventBadge = (type) => {
     if (type?.includes('EMERGENCY') || type?.includes('PREEMPTION')) {
       return 'bg-rose-950 text-rose-300 border-rose-800';
@@ -32,9 +41,11 @@ export function EventLog({ events }) {
       {/* Event Items Feed Container */}
       <div className="overflow-y-auto max-h-[160px] pr-1 space-y-2 font-mono text-xs flex-1">
         {events && events.length > 0 ? (
-          events.map((item) => (
+          events.map((raw) => {
+          const item = normaliseEvent(raw);
+          return (
             <div
-              key={item.id || item.timestamp}
+              key={item.id}
               className="bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 flex items-start gap-2 justify-between"
             >
               <div className="flex items-start gap-2">
@@ -48,7 +59,8 @@ export function EventLog({ events }) {
                 {item.type}
               </span>
             </div>
-          ))
+          );
+        })
         ) : (
           <div className="text-center py-6 text-slate-500 text-xs italic">
             No events recorded yet. Waiting for intersection telemetry...

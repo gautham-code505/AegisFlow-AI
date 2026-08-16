@@ -4,8 +4,10 @@ import { Brain, CheckCircle2, ShieldAlert, Sparkles, Clock, AlertTriangle } from
 export function DecisionPanel({ signalDecision }) {
   const activeLane = signalDecision?.active_lane || 'north';
   const duration = signalDecision?.duration || 30;
-  const priority = signalDecision?.priority || 'NORMAL';
-  const confidence = Math.round((signalDecision?.confidence || 0.95) * 100);
+  const priority = (signalDecision?.priority || 'NORMAL').toUpperCase();
+  // confidence is optional — only display when present in the payload
+  const confidenceRaw = signalDecision?.confidence;
+  const confidenceDisplay = confidenceRaw != null ? `${Math.round(confidenceRaw * 100)}%` : 'N/A';
   const reasons = signalDecision?.reason || [
     'Highest occupancy on approach corridor',
     'Demand threshold satisfied',
@@ -62,8 +64,10 @@ export function DecisionPanel({ signalDecision }) {
 
         <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800">
           <span className="text-[10px] text-slate-400 font-medium block">Confidence</span>
-          <span className="text-base font-bold text-indigo-300 font-mono block mt-0.5">
-            {confidence}%
+          <span className={`text-base font-bold font-mono block mt-0.5 ${
+            confidenceRaw != null ? 'text-indigo-300' : 'text-slate-500'
+          }`}>
+            {confidenceDisplay}
           </span>
         </div>
       </div>
@@ -72,7 +76,7 @@ export function DecisionPanel({ signalDecision }) {
       <div className="mb-3">
         <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-between ${getPriorityBadge()}`}>
           <span>PRIORITY TIER: {priority}</span>
-          <span className="text-[10px] font-mono opacity-80">Safety Validator Approved</span>
+          <span className="text-[10px] font-mono opacity-80">Safety Rule Validated</span>
         </div>
       </div>
 
@@ -95,7 +99,7 @@ export function DecisionPanel({ signalDecision }) {
       {/* Verification Footer */}
       <div className="mt-3 pt-2 border-t border-slate-800/60 text-[11px] text-slate-400 flex items-center justify-between">
         <span>Deterministic Rule Engine: Enabled</span>
-        <span className="text-emerald-400 font-semibold">Zero Hallucination Guarantee</span>
+        <span className="text-emerald-400 font-semibold">Deterministic Rule Policy</span>
       </div>
     </div>
   );

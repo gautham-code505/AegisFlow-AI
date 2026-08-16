@@ -41,3 +41,22 @@ export async function fetchCurrentTrafficState() {
     return null;
   }
 }
+
+export async function sendManualOverride(overrideData) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/override`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(overrideData),
+    });
+
+    if (!response.ok) throw new Error(`Override failed with status: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.warn('[AegisFlow API] Manual override endpoint failed:', error.message);
+    throw error;
+  }
+}
+

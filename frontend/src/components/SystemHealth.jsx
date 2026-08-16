@@ -56,7 +56,7 @@ export function SystemHealth({ systemStatus }) {
           </h2>
         </div>
         <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700 rounded">
-          EDGE NODE: HEALTHY
+          {systemStatus?.mode === 'local' ? 'EDGE NODE: LOCAL' : 'EDGE NODE: READY'}
         </span>
       </div>
 
@@ -95,12 +95,12 @@ export function SystemHealth({ systemStatus }) {
         <div className="flex items-center gap-2 text-emerald-300">
           <WifiOff className="w-4 h-4 text-emerald-400" />
           <div>
-            <span className="font-bold block">OFFLINE ARCHITECTURE VERIFIED</span>
-            <span className="text-[10px] text-slate-400">Core logic processes 100% locally on intersection edge</span>
+            <span className="font-bold block">OFFLINE ARCHITECTURE READY</span>
+            <span className="text-[10px] text-slate-400">Core logic designed for local edge operation</span>
           </div>
         </div>
         <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950 px-2 py-1 rounded border border-emerald-800">
-          100% LOCAL
+          LOCAL MODE
         </span>
       </div>
     </div>

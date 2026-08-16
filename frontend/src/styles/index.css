@@ -2,7 +2,9 @@
 
 @layer base {
   body {
-    background-color: #0b0f17;
+    background: radial-gradient(ellipse at top left, #0d1f1e 0%, #0a1628 40%, #07101c 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
     color: #f1f5f9;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     overflow-x: hidden;
@@ -11,10 +13,10 @@
 
 /* Custom Control Room Utilities */
 .control-card {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  background: rgba(13, 31, 30, 0.72);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(20, 184, 166, 0.15);
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(20, 184, 166, 0.04) inset;
 }
 
 .control-card-glow {
@@ -56,14 +58,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #0a1e1d;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #14514a;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #1a6b62;
 }
