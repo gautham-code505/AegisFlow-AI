@@ -1,0 +1,82 @@
+{
+  "TrafficState": {
+    "timestamp": 124.5,
+    "frame_id": 3735,
+    "source": "cam-intersection-01",
+    "lanes": {
+      "north": {
+        "vehicle_count": 8,
+        "occupancy": 0.42,
+        "pedestrian_count": 1,
+        "heavy_vehicle_count": 1
+      },
+      "south": {
+        "vehicle_count": 5,
+        "occupancy": 0.28,
+        "pedestrian_count": 0,
+        "heavy_vehicle_count": 0
+      },
+      "east": {
+        "vehicle_count": 6,
+        "occupancy": 0.35,
+        "pedestrian_count": 2,
+        "heavy_vehicle_count": 1
+      },
+      "west": {
+        "vehicle_count": 3,
+        "occupancy": 0.18,
+        "pedestrian_count": 0,
+        "heavy_vehicle_count": 0
+      }
+    },
+    "emergency": {
+      "detected": false,
+      "lane": null,
+      "vehicle_type": null
+    }
+  },
+  "SignalDecision": {
+    "decision_id": "dec-20260816-00102",
+    "timestamp": 124.5,
+    "selected_lane": "north",
+    "duration": 30,
+    "priority": "NORMAL",
+    "reasons": [
+      "North approach has highest occupancy score (0.42)",
+      "Starvation threshold not exceeded on opposing approaches"
+    ],
+    "score_breakdown": {
+      "north": 0.452,
+      "south": 0.291,
+      "east": 0.370,
+      "west": 0.185
+    }
+  },
+  "SignalState": {
+    "timestamp": 125.0,
+    "north": "GREEN",
+    "south": "RED",
+    "east": "RED",
+    "west": "RED",
+    "active_lane": "north",
+    "phase": "GREEN",
+    "remaining_seconds": 22
+  },
+  "SystemStatus": {
+    "timestamp": 125.0,
+    "mode": "LOCAL",
+    "internet": "OFFLINE",
+    "camera": "ONLINE",
+    "vision": "ONLINE",
+    "decision_engine": "ONLINE",
+    "safety": "ONLINE",
+    "controller": "ONLINE"
+  },
+  "Event": {
+    "event_id": "ev-88402",
+    "timestamp": 124.5,
+    "type": "SIGNAL_DECISION",
+    "severity": "INFO",
+    "message": "Decision Engine selected North approach for 30s green phase"
+  }
+}
