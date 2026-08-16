@@ -25,9 +25,20 @@ Gautham Safety / Controller
 - **[`enums.py`](file:///f:/AegisFlow%20AI/models/enums.py)**: Canonical enumeration types (`Lane`, `SignalColor`, `SignalPhase`, `Priority`, `SystemMode`, `Status`, `EventSeverity`).
 - **[`traffic_state.py`](file:///f:/AegisFlow%20AI/models/traffic_state.py)**: `TrafficState`, `LaneState`, and `EmergencyState` models representing vision observations.
 - **[`signal_decision.py`](file:///f:/AegisFlow%20AI/models/signal_decision.py)**: `SignalDecision` model representing algorithm recommendations from the Decision Engine.
-- **[`signal_state.py`](file:///f:/AegisFlow%20AI/models/signal_state.py)**: `SignalState` model representing real-time hardware execution on signal heads.
+- **[`signal_state.py`](file:///f:/AegisFlow%20AI/models/signal_state.py)**: `SignalState` model representing real-time execution on signal heads with concurrent `active_lanes` support.
 - **[`system_status.py`](file:///f:/AegisFlow%20AI/models/system_status.py)**: `SystemStatus` telemetry health status for edge nodes.
 - **[`events.py`](file:///f:/AegisFlow%20AI/models/events.py)**: `Event` audit log and alert signal model.
+
+---
+
+## Intersection Geometry Assumptions & Safety Boundaries
+
+> [!NOTE]
+> The MVP uses a configurable simplified four-approach intersection model (`north`, `south`, `east`, `west`).
+> The phase matrix represents the safety assumptions of this software prototype. It is NOT a universal representation of every real-world intersection.
+> Real deployment would require intersection-specific geometry, lane/movement mapping, turning restrictions, pedestrian phases, and traffic-authority validation.
+>
+> The prototype prevents signal combinations that violate its configured deterministic conflict matrix.
 
 ---
 
@@ -65,4 +76,4 @@ During repository inspection of the remote feature branches, the following struc
 ## Validation Principles
 
 - Models enforce strict data type constraints, bounds checking (e.g. `occupancy` in `[0.0, 1.0]`, counts `>= 0`, duration `> 0`), and enum validity.
-- Models **do not** implement traffic safety logic (e.g. enforcing "North and South cannot both be GREEN"). Safety invariant enforcement belongs strictly to the future **Safety Validator** component.
+- Models **do not** implement traffic safety logic (e.g. enforcing "North and South cannot both be GREEN"). Safety invariant enforcement belongs strictly to the **Safety Validator** (`safety/`) component.

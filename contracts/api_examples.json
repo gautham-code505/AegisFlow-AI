@@ -55,9 +55,13 @@
   "SignalState": {
     "timestamp": 125.0,
     "north": "GREEN",
-    "south": "RED",
+    "south": "GREEN",
     "east": "RED",
     "west": "RED",
+    "active_lanes": [
+      "north",
+      "south"
+    ],
     "active_lane": "north",
     "phase": "GREEN",
     "remaining_seconds": 22

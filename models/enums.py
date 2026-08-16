@@ -37,6 +37,7 @@ class Priority(StrEnum):
     HIGH = "HIGH"
     EMERGENCY = "EMERGENCY"
     FALLBACK = "FALLBACK"
+    MANUAL = "MANUAL"
 
 
 class SystemMode(StrEnum):

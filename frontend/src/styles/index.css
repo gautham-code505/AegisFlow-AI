@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #0b0f17;
+    color: #f1f5f9;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Control Room Utilities */
+.control-card {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.control-card-glow {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.25);
+}
+
+.emergency-pulse {
+  animation: emergencyFlash 1.2s infinite alternate;
+}
+
+@keyframes emergencyFlash {
+  0% {
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.9);
+    border-color: rgba(239, 68, 68, 1);
+  }
+}
+
+.traffic-green-glow {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.8);
+}
+
+.traffic-red-glow {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+}
+
+.traffic-yellow-glow {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.8);
+}
+
+/* Custom scrollbar for log feed */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
