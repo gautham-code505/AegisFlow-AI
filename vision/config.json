@@ -1,0 +1,67 @@
+{
+  "camera_resolution": [640, 480],
+  "lanes": {
+    "north": {
+      "capacity": 10,
+      "polygon": [
+        [250, 0], [390, 0], [390, 180], [250, 180]
+      ]
+    },
+    "south": {
+      "capacity": 10,
+      "polygon": [
+        [250, 300], [390, 300], [390, 480], [250, 480]
+      ]
+    },
+    "east": {
+      "capacity": 10,
+      "polygon": [
+        [390, 180], [640, 180], [640, 300], [390, 300]
+      ]
+    },
+    "west": {
+      "capacity": 10,
+      "polygon": [
+        [0, 180], [250, 180], [250, 300], [0, 300]
+      ]
+    }
+  },
+  "crosswalks": {
+    "north_crosswalk": {
+      "polygon": [
+        [250, 150], [390, 150], [390, 180], [250, 180]
+      ]
+    },
+    "south_crosswalk": {
+      "polygon": [
+        [250, 300], [390, 300], [390, 330], [250, 330]
+      ]
+    },
+    "east_crosswalk": {
+      "polygon": [
+        [390, 180], [420, 180], [420, 300], [390, 300]
+      ]
+    },
+    "west_crosswalk": {
+      "polygon": [
+        [220, 180], [250, 180], [250, 300], [220, 300]
+      ]
+    }
+  },
+  "vehicle_weights": {
+    "motorcycle": 0.5,
+    "bicycle": 0.5,
+    "car": 1.0,
+    "bus": 2.5,
+    "truck": 2.5,
+    "person": 0.2
+  },
+  "classes_to_detect": [
+    "motorcycle",
+    "bicycle",
+    "car",
+    "bus",
+    "truck",
+    "person"
+  ]
+}
