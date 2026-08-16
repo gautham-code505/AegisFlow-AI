@@ -2,10 +2,11 @@ import json
 from ultralytics import YOLO
 
 class VehicleDetector:
-    def __init__(self, model_path: str, config_path: str):
+    def __init__(self, model_path: str, config_path: str, conf_threshold: float = 0.25):
         self.model = YOLO(model_path)
         self.classes_to_detect = []
         self.class_name_to_id = {}
+        self.conf_threshold = conf_threshold
         self.load_config(config_path)
         
     def load_config(self, config_path: str):
@@ -28,11 +29,10 @@ class VehicleDetector:
         ]
         """
         # Run inference, only filtering by our specific classes if needed
-        # We can pass classes=[0, 2, 3, 5, 7] to YOLO, but we'll do it dynamically
         class_ids = list(self.class_name_to_id.values())
         
         # verbose=False to keep terminal clean
-        results = self.model.predict(frame, classes=class_ids, verbose=False)
+        results = self.model.predict(frame, classes=class_ids, conf=self.conf_threshold, verbose=False)
         
         detections = []
         if len(results) > 0:

@@ -8,6 +8,7 @@ class ROIManager:
         self.config_path = config_path
         self.lanes = {}
         self.capacities = {}
+        self.crosswalks = {}
         self.load_config()
 
     def load_config(self):
@@ -19,6 +20,11 @@ class ROIManager:
             pts = pts.reshape((-1, 1, 2))
             self.lanes[lane_name] = pts
             self.capacities[lane_name] = lane_data.get("capacity", 10)
+            
+        for cw_name, cw_data in config.get("crosswalks", {}).items():
+            pts = np.array(cw_data["polygon"], np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            self.crosswalks[cw_name] = pts
 
     def get_lane_for_point(self, x: int, y: int) -> str:
         """
@@ -31,10 +37,25 @@ class ROIManager:
             if cv2.pointPolygonTest(polygon, point, False) >= 0:
                 return lane_name
         return None
+        
+    def get_crosswalk_for_point(self, x: int, y: int) -> str:
+        """
+        Returns the name of the crosswalk the point (x, y) belongs to, 
+        or None if it doesn't belong to any crosswalk ROI.
+        """
+        point = (float(x), float(y))
+        for cw_name, polygon in self.crosswalks.items():
+            if cv2.pointPolygonTest(polygon, point, False) >= 0:
+                return cw_name
+        return None
 
     def get_polygons(self):
         """Returns a dict of lane_name: polygon_points for visualization."""
         return self.lanes
+        
+    def get_crosswalk_polygons(self):
+        """Returns a dict of crosswalk_name: polygon_points for visualization."""
+        return self.crosswalks
 
     def get_capacity(self, lane_name: str) -> int:
         return self.capacities.get(lane_name, 1)
@@ -42,4 +63,5 @@ class ROIManager:
 if __name__ == "__main__":
     roi_mgr = ROIManager("config.json")
     print("Loaded lanes:", list(roi_mgr.lanes.keys()))
-    print("Point (300, 100) is in:", roi_mgr.get_lane_for_point(300, 100))
+    print("Loaded crosswalks:", list(roi_mgr.crosswalks.keys()))
+    print("Point (300, 100) is in lane:", roi_mgr.get_lane_for_point(300, 100))
