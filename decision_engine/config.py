@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Set
 
-@dataclass
-class DecisionEngineConfig:
+@dataclass(frozen=True)
+class DecisionConfig:
     # Timing Limits
     MIN_GREEN_TIME: int = 10
     MAX_GREEN_TIME: int = 45
@@ -24,8 +24,8 @@ class DecisionEngineConfig:
     MAX_EXPECTED_PEDESTRIANS: int = 10
 
     # System Configuration
-    VALID_LANES: Set[str] = field(default_factory=lambda: {"north", "south", "east", "west"})
+    VALID_LANES: frozenset[str] = field(default_factory=lambda: frozenset({"north", "south", "east", "west"}))
     DEFAULT_LANE: str = "north"
 
-# Shared default configuration instance
-DEFAULT_CONFIG = DecisionEngineConfig()
+# Keep class alias for backward compatibility
+DecisionEngineConfig = DecisionConfig

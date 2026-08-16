@@ -1,13 +1,33 @@
 import logging
 from typing import Any, Dict, List, Tuple, Union
 from .models import TrafficState, LaneState, EmergencyState
-from .config import DecisionEngineConfig
+from .config import DecisionConfig
 
 logger = logging.getLogger(__name__)
 
+def parse_boolean(val: Any) -> bool:
+    """
+    Parses a boolean value safely.
+    Allows standard booleans and the strings 'true', 'false', 'True', 'False'.
+    Raises ValueError on other types or invalid strings.
+    """
+    if val is None:
+        raise ValueError("Boolean value cannot be None")
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        val_lower = val.strip().lower()
+        if val_lower == "true":
+            return True
+        elif val_lower == "false":
+            return False
+        else:
+            raise ValueError(f"Invalid boolean string: '{val}'")
+    raise ValueError(f"Invalid boolean type: {type(val)}")
+
 def validate_traffic_state(
     raw_data: Any,
-    config: DecisionEngineConfig
+    config: DecisionConfig
 ) -> Tuple[TrafficState, List[str]]:
     """
     Validates and sanitizes traffic state input.
@@ -35,8 +55,6 @@ def validate_traffic_state(
 
     # If raw_data is already a TrafficState, validate its components
     if isinstance(raw_data, TrafficState):
-        # We can serialize and validate or validate in place.
-        # For simplicity, convert or extract data.
         data_dict = {
             "timestamp": raw_data.timestamp,
             "lanes": {
@@ -121,7 +139,7 @@ def validate_traffic_state(
         
         validated_lanes[lane_name] = LaneState(vehicle_count=v_count, occupancy=occupancy)
 
-    # Warn about extra invalid lanes in input (optional check)
+    # Warn about extra invalid lanes in input
     if isinstance(lanes_input, dict):
         for lane_name in lanes_input:
             if lane_name not in config.VALID_LANES:
@@ -135,9 +153,13 @@ def validate_traffic_state(
     if not isinstance(emergency_input, dict):
         warnings.append("Emergency data is missing or is not a dictionary. Defaulting to no emergency.")
     else:
-        # Validate emergency detection flag
+        # Validate emergency detection flag with parse_boolean
         raw_detected = emergency_input.get("detected")
-        detected = bool(raw_detected)
+        try:
+            detected = parse_boolean(raw_detected)
+        except ValueError as e:
+            warnings.append(f"Invalid boolean value for emergency detected: {raw_detected}. Defaulting to False. Error: {str(e)}")
+            detected = False
 
         # Validate emergency lane
         raw_lane = emergency_input.get("lane")
@@ -182,7 +204,6 @@ def validate_traffic_state(
                         warnings.append(f"Pedestrian count for lane '{lane_name}' invalid ({raw_p_count}), defaulting to 0.")
                 validated_pedestrians[lane_name] = p_count
     else:
-        # If pedestrians key is absent, treat as all zeros (treated as zero request requirement)
         for lane in config.VALID_LANES:
             validated_pedestrians[lane] = 0
 

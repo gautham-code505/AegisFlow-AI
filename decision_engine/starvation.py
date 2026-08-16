@@ -1,18 +1,27 @@
 from typing import Dict, List, Tuple
-from .config import DecisionEngineConfig
+from .config import DecisionConfig
+from .models import LaneState
 
 def check_starvation(
     waiting_times: Dict[str, float],
     consecutive_skips: Dict[str, int],
-    config: DecisionEngineConfig
+    config: DecisionConfig,
+    lanes: Dict[str, LaneState]
 ) -> List[str]:
     """
     Identifies lanes that are starving based on waiting threshold or maximum consecutive skips.
+    Does not trigger starvation for empty lanes (vehicle_count == 0 and occupancy == 0).
     Returns a list of starving lane names.
     """
     starved_lanes = []
     # Check all configured lanes to ensure we validate starvation correctly
     for lane in config.VALID_LANES:
+        lane_state = lanes.get(lane)
+        if lane_state is not None:
+            if lane_state.vehicle_count == 0 and lane_state.occupancy == 0.0:
+                # Empty lane: ignore starvation
+                continue
+
         wait_time = waiting_times.get(lane, 0.0)
         skips = consecutive_skips.get(lane, 0)
         
@@ -30,7 +39,7 @@ def update_starvation_state(
     consecutive_skips: Dict[str, int],
     active_lane: str,
     elapsed_time: float,
-    config: DecisionEngineConfig
+    config: DecisionConfig
 ) -> Tuple[Dict[str, float], Dict[str, int]]:
     """
     Updates internal waiting times and skips.

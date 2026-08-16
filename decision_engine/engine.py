@@ -1,8 +1,9 @@
 import logging
+import uuid
 from typing import Dict, Union, Any, List
 
-from .models import TrafficState, SignalDecision, LaneState
-from .config import DecisionEngineConfig, DEFAULT_CONFIG
+from .models import TrafficState, SignalDecision, LaneState, Priority
+from .config import DecisionConfig
 from .validator import validate_traffic_state
 from .emergency import check_emergency
 from .starvation import check_starvation
@@ -12,11 +13,13 @@ from .timing import calculate_green_time
 logger = logging.getLogger(__name__)
 
 class DecisionEngine:
-    def __init__(self, config: DecisionEngineConfig = DEFAULT_CONFIG):
+    def __init__(self, config: DecisionConfig = None):
         """
         Initializes the DecisionEngine with configurations and sets up
         the internal state tracker for waiting times and skips.
         """
+        if config is None:
+            config = DecisionConfig()
         self.config = config
         
         # Internal state tracking
@@ -43,7 +46,7 @@ class DecisionEngine:
             if state.timestamp > self.last_timestamp:
                 elapsed = state.timestamp - self.last_timestamp
             else:
-                elapsed = float(self.last_duration)
+                elapsed = 0.0
 
             for lane in self.config.VALID_LANES:
                 # If the lane was skipped in the previous cycle, increment its waiting time
@@ -58,7 +61,7 @@ class DecisionEngine:
 
         # 4. Process Decision Tiers
         active_lane = self.config.DEFAULT_LANE
-        priority = "normal"
+        priority = Priority.NORMAL
         reasons: List[str] = []
 
         # Tier 1: Emergency Vehicle Override
@@ -69,14 +72,14 @@ class DecisionEngine:
                 reasons.append("Handled invalid input parameters via safe defaults")
         else:
             # Tier 2: Starvation Prevention Check
-            starved_lanes = check_starvation(self.waiting_times, self.consecutive_skips, self.config)
+            starved_lanes = check_starvation(self.waiting_times, self.consecutive_skips, self.config, state.lanes)
             
             if starved_lanes:
                 # Select the starved lane with the highest demand score
                 # Tie-breaking: score descending, lane name ascending (alphabetical)
                 sorted_starved = sorted(starved_lanes, key=lambda l: (-scores[l][0], l))
                 active_lane = sorted_starved[0]
-                priority = "high"
+                priority = Priority.STARVATION_PREVENTION
                 
                 # Build detailed explainable reasons
                 wait_t = self.waiting_times[active_lane]
@@ -89,7 +92,7 @@ class DecisionEngine:
                 # Tier 3 & 4: Traffic Demand Score & Tie-breaker
                 sorted_lanes = sorted(state.lanes.keys(), key=lambda l: (-scores[l][0], l))
                 active_lane = sorted_lanes[0]
-                priority = "normal"
+                priority = Priority.NORMAL
 
                 # Build detailed explainable reasons
                 lane_state = state.lanes[active_lane]
@@ -126,9 +129,16 @@ class DecisionEngine:
         self.last_duration = duration
         self.last_timestamp = state.timestamp
 
+        score_breakdown = {lane: scores[lane][0] for lane in state.lanes}
+        confidence = 0.95 if priority == Priority.NORMAL else 1.0
+
         return SignalDecision(
-            active_lane=active_lane,
+            decision_id=str(uuid.uuid4()),
+            timestamp=state.timestamp,
+            selected_lane=active_lane,
             duration=duration,
             priority=priority,
-            reason=reasons
+            reasons=reasons,
+            score_breakdown=score_breakdown,
+            confidence=confidence
         )

@@ -1,5 +1,5 @@
-from .models import TrafficState, LaneState, EmergencyState, SignalDecision
-from .config import DecisionEngineConfig, DEFAULT_CONFIG
+from .models import TrafficState, LaneState, EmergencyState, SignalDecision, Priority
+from .config import DecisionConfig, DecisionEngineConfig
 from .engine import DecisionEngine
 from .validator import validate_traffic_state
 
@@ -8,8 +8,9 @@ __all__ = [
     "LaneState",
     "EmergencyState",
     "SignalDecision",
+    "Priority",
+    "DecisionConfig",
     "DecisionEngineConfig",
-    "DEFAULT_CONFIG",
     "DecisionEngine",
     "validate_traffic_state"
 ]

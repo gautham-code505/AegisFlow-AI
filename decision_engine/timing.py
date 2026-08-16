@@ -1,9 +1,9 @@
 from .models import LaneState
-from .config import DecisionEngineConfig
+from .config import DecisionConfig
 
 def calculate_green_time(
     lane_state: LaneState,
-    config: DecisionEngineConfig
+    config: DecisionConfig
 ) -> int:
     """
     Dynamically calculates the green signal duration for a chosen lane.

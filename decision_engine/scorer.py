@@ -1,12 +1,12 @@
 from typing import Dict, Any, Tuple
 from .models import TrafficState
-from .config import DecisionEngineConfig
+from .config import DecisionConfig
 
 def calculate_lane_scores(
     state: TrafficState,
     waiting_times: Dict[str, float],
     consecutive_skips: Dict[str, int],
-    config: DecisionEngineConfig
+    config: DecisionConfig
 ) -> Dict[str, Tuple[float, Dict[str, float]]]:
     """
     Calculates traffic scores for all lanes based on occupancy, vehicle counts,
@@ -23,8 +23,14 @@ def calculate_lane_scores(
         # 2. Normalized vehicle count
         norm_veh = min(1.0, lane_state.vehicle_count / max(1, config.MAX_EXPECTED_VEHICLES))
 
-        # 3. Normalized waiting time
-        wait_time = waiting_times.get(lane_name, 0.0)
+        # Check if lane has no vehicles or occupancy
+        is_empty = (lane_state.vehicle_count == 0 and lane_state.occupancy == 0.0)
+
+        # 3. Normalized waiting time (ignored if empty)
+        if is_empty:
+            wait_time = 0.0
+        else:
+            wait_time = waiting_times.get(lane_name, 0.0)
         norm_wait = min(1.0, wait_time / max(0.1, config.STARVATION_THRESHOLD))
 
         # 4. Pedestrian demand
@@ -33,13 +39,16 @@ def calculate_lane_scores(
             ped_count = state.pedestrians.get(lane_name, 0)
         norm_ped = min(1.0, ped_count / max(1, config.MAX_EXPECTED_PEDESTRIANS))
 
-        # 5. Starvation factor
-        # Continuous representation: how close the lane is to starvation
-        skips = consecutive_skips.get(lane_name, 0)
-        starvation_factor = max(
-            min(1.0, wait_time / max(0.1, config.STARVATION_THRESHOLD)),
-            min(1.0, skips / max(1, config.MAX_CONSECUTIVE_SKIPS))
-        )
+        # 5. Starvation factor (ignored if empty)
+        if is_empty:
+            starvation_factor = 0.0
+            skips = 0
+        else:
+            skips = consecutive_skips.get(lane_name, 0)
+            starvation_factor = max(
+                min(1.0, wait_time / max(0.1, config.STARVATION_THRESHOLD)),
+                min(1.0, skips / max(1, config.MAX_CONSECUTIVE_SKIPS))
+            )
 
         # Weighted calculation
         occ_component = config.OCCUPANCY_WEIGHT * occ
