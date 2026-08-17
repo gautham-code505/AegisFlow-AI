@@ -26,6 +26,14 @@ def mock_vision_adapter(tmp_path):
             "south": {
                 "capacity": 10,
                 "polygon": [[100, 100], [200, 100], [200, 200], [100, 200]]
+            },
+            "east": {
+                "capacity": 10,
+                "polygon": [[200, 0], [300, 0], [300, 100], [200, 100]]
+            },
+            "west": {
+                "capacity": 10,
+                "polygon": [[0, 100], [100, 100], [100, 200], [0, 200]]
             }
         },
         "vehicle_weights": {
@@ -42,6 +50,20 @@ def mock_vision_adapter(tmp_path):
     # Inject mock detector to avoid YOLO loading
     adapter.detector = MockVehicleDetector()
     return adapter
+
+
+def test_vision_adapter_rejects_unsupported_topology(tmp_path):
+    """A 6/8-way config must not be silently treated as the four-way model."""
+    import json
+
+    config_file = tmp_path / "six_way.json"
+    config_file.write_text(json.dumps({
+        "topology": {"approaches": ["north", "south", "east", "west", "northeast", "southwest"]},
+        "lanes": {},
+    }))
+
+    with pytest.raises(ValueError, match="Unsupported intersection topology"):
+        VisionAdapter(config_path=str(config_file), model_path="dummy.pt")
 
 def test_vision_adapter_detection_conversion(mock_vision_adapter):
     # Set up some dummy detections

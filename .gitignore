@@ -214,5 +214,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Streamlit
 .streamlit/secrets.toml
+
+# AegisFlow AI ignores
+scratch/
+data/videos/output_*.mp4
+data/videos/temp_*.mp4
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/

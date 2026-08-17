@@ -26,14 +26,38 @@ class VisionAdapter:
         "west": Lane.WEST
     }
 
+    # The canonical TrafficState and safety phase matrix currently model one
+    # four-approach intersection only.  Configuration is intentionally
+    # validated at this boundary so a 6/8-way camera is never silently
+    # interpreted as a safe four-way topology.
+    SUPPORTED_APPROACHES = frozenset(LANE_MAPPING)
+
     def __init__(self, config_path: str = "vision/config.json", model_path: str = "../yolov8n.pt"):
         self.config_path = config_path
         self.model_path = model_path
+        self._validate_topology_config()
         self.roi_mgr = ROIManager(config_path)
         self.occ_calc = OccupancyCalculator(config_path, self.roi_mgr)
         
         # Load detector lazily to avoid heavy loading on import/startup if not needed immediately
         self.detector = None
+
+    def _validate_topology_config(self) -> None:
+        """Reject configurations that the four-way safety model cannot represent."""
+        with open(self.config_path, "r", encoding="utf-8") as config_file:
+            config = json.load(config_file)
+
+        topology = config.get("topology", {})
+        approach_names = topology.get("approaches", list(config.get("lanes", {}).keys()))
+        normalized = {str(name).lower() for name in approach_names}
+
+        if normalized != self.SUPPORTED_APPROACHES:
+            raise ValueError(
+                "Unsupported intersection topology. AegisFlow's current vision, "
+                "TrafficState, and safety matrix support exactly the configured "
+                "four approaches: north, south, east, west. A 6/8-way intersection "
+                "requires an explicit topology model and validated conflict matrix."
+            )
 
     def _ensure_detector(self):
         if self.detector is None:
@@ -86,7 +110,7 @@ class VisionAdapter:
                         vehicles_per_lane[lane].append(cls)
                         
                 # 3. Translate to Canonical TrafficState
-                timestamp = round(frame_count / vid_proc.fps, 2)
+                timestamp = time.time()
                 
                 lane_states = {}
                 for lane_str, lane_enum in self.LANE_MAPPING.items():

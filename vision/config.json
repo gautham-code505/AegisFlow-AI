@@ -1,4 +1,8 @@
 {
+  "topology": {
+    "approach_count": 4,
+    "approaches": ["north", "south", "east", "west"]
+  },
   "camera_resolution": [640, 480],
   "lanes": {
     "north": {
