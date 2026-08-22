@@ -26,6 +26,7 @@ class DecisionEngine:
         self.last_timestamp: Any = None
         self.last_active_lane: Any = None
         self.last_duration: float = 0.0
+        self.last_scores: Dict[str, Any] = {}
 
     def decide(self, traffic_state: Union[dict, TrafficState]) -> SignalDecision:
         """
@@ -55,6 +56,7 @@ class DecisionEngine:
 
         # 3. Calculate scores for all lanes
         scores = calculate_lane_scores(state, self.waiting_times, self.consecutive_skips, self.config)
+        self.last_scores = scores
 
         # 4. Process Decision Tiers
         active_lane = self.config.DEFAULT_LANE

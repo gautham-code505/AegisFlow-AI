@@ -5,9 +5,8 @@ import { ScenarioSelector } from './components/ScenarioSelector';
 import { VideoPanel } from './components/VideoPanel';
 import { IntersectionSignal } from './components/IntersectionSignal';
 import { TrafficStats } from './components/TrafficStats';
-import { OccupancyTrendsChart } from './components/OccupancyTrendsChart';
-import { PerformanceMetrics } from './components/PerformanceMetrics';
 import { DecisionPanel } from './components/DecisionPanel';
+import { SafetyPanel } from './components/SafetyPanel';
 import { EmergencyAlert } from './components/EmergencyAlert';
 import { SystemHealth } from './components/SystemHealth';
 import { EventLog } from './components/EventLog';
@@ -22,6 +21,8 @@ export default function App() {
     signalState,
     systemStatus,
     events,
+    approachDetections,
+    safetyResult,
     activeScenario,
     setScenario,
     isMockMode,
@@ -40,7 +41,7 @@ export default function App() {
           onOpenOverrideModal={() => setIsOverrideModalOpen(true)}
         />
 
-        {/* Demo Scenario & Data Mode Switcher */}
+        {/* Data Source & Scenario Selector */}
         <ScenarioSelector
           activeScenario={activeScenario}
           onSelectScenario={setScenario}
@@ -51,31 +52,39 @@ export default function App() {
         {/* Emergency Alert Banner */}
         <EmergencyAlert emergency={trafficState?.emergency} />
 
-        {/* Main Grid Section 1: Perception & Signal Matrix */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          <VideoPanel systemStatus={systemStatus} trafficState={trafficState} />
+        {/* Section 1: Inputs (VideoPanel) */}
+        <div className="mb-4">
+          <VideoPanel
+            systemStatus={systemStatus}
+            trafficState={trafficState}
+            approachDetections={approachDetections}
+            signalDecision={signalDecision}
+          />
+        </div>
+
+        {/* Section 2: AI Decision + Signal Matrix + Safety */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          <DecisionPanel signalDecision={signalDecision} />
           <IntersectionSignal
             signalState={signalState}
             signalDecision={signalDecision}
             trafficState={trafficState}
           />
+          <SafetyPanel safetyResult={safetyResult} />
         </div>
 
-        {/* Main Grid Section 2: 4-Way Approach Density & Counts */}
+        {/* Section 3: Stats & Health */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-4">
+          <div className="xl:col-span-3">
+            <TrafficStats trafficState={trafficState} signalDecision={signalDecision} />
+          </div>
+          <div className="xl:col-span-1">
+            <SystemHealth systemStatus={systemStatus} />
+          </div>
+        </div>
+
+        {/* Section 4: Event Audit Log */}
         <div className="mb-4">
-          <TrafficStats trafficState={trafficState} signalDecision={signalDecision} />
-        </div>
-
-        {/* Main Grid Section 3: Telemetry Trends & Performance */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          <OccupancyTrendsChart trafficState={trafficState} />
-          <PerformanceMetrics systemStatus={systemStatus} />
-        </div>
-
-        {/* Main Grid Section 4: Explainable AI, Subsystem Health & Audit Event Stream */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <DecisionPanel signalDecision={signalDecision} />
-          <SystemHealth systemStatus={systemStatus} />
           <EventLog events={events} />
         </div>
 
@@ -89,10 +98,10 @@ export default function App() {
         {/* Footer */}
         <footer className="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
-            AegisFlow AI — SmartAIthon 2026 | Team: Divya K (Frontend), Gautham M A (Lead), Harshadha M (Vision), Jayasuriya S (Decision)
+            AegisFlow AI — Intelligent Adaptive Traffic Control
           </div>
           <div className="text-emerald-400/80 font-mono font-medium">
-            100% Offline Edge Operation Verified
+            100% Offline Edge Operation
           </div>
         </footer>
       </div>

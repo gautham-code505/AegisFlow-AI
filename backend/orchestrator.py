@@ -132,6 +132,8 @@ class Orchestrator:
                 signal_state=signal_state,
                 system_status=self.state_store.get_system_status(),
                 events=self.state_store.get_events(),
+                approach_detections=self.state_store.get_approach_detections(),
+                safety_result=self.state_store.get_safety_result(),
             )
             raise exc
 
@@ -153,6 +155,15 @@ class Orchestrator:
             traffic_state=state,
             current_time=now,
         )
+
+        # Store safety result for frontend display
+        self.state_store.set_safety_result({
+            "status": val_result.status.value if hasattr(val_result.status, 'value') else str(val_result.status),
+            "approved": val_result.approved,
+            "reasons": val_result.reasons,
+            "proposed_lane": val_result.proposed_lane.value if val_result.proposed_lane else None,
+            "proposed_duration": val_result.proposed_duration,
+        })
 
         # 4. Virtual Signal Controller Execution based on Validation Result
         if val_result.status == ValidationStatus.APPROVED and decision:
@@ -215,6 +226,8 @@ class Orchestrator:
             signal_state=self.state_store.get_signal_state(),
             system_status=self.state_store.get_system_status(),
             events=self.state_store.get_events(),
+            approach_detections=self.state_store.get_approach_detections(),
+            safety_result=self.state_store.get_safety_result(),
         )
 
         return decision

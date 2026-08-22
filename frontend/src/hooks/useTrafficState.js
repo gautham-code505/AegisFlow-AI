@@ -3,30 +3,47 @@ import { SCENARIOS, mockScenariosData } from '../services/mockData';
 import { createTrafficWebSocket } from '../services/websocket';
 import { postOverride, deleteOverride } from '../services/api';
 
+const EMPTY_STATE = {
+  trafficState: null,
+  signalDecision: null,
+  signalState: null,
+  systemStatus: null,
+  events: [],
+  approachDetections: {},
+  safetyResult: null
+};
+
 export function useTrafficState() {
   const [activeScenario, setActiveScenario] = useState(SCENARIOS.NORMAL);
-  const [isMockMode, setIsMockMode] = useState(true);
+  const [isMockMode, setIsMockMode] = useState(false);
   const [wsStatus, setWsStatus] = useState('DISCONNECTED');
 
-  // Active data state initialized from mock scenario
-  const [data, setData] = useState(() => mockScenariosData[SCENARIOS.NORMAL]);
+  const [data, setData] = useState(EMPTY_STATE);
 
-  // Handle scenario switching in mock mode
+  useEffect(() => {
+    if (isMockMode) {
+      setData(mockScenariosData[activeScenario]);
+    } else {
+      setData(EMPTY_STATE);
+    }
+  }, [isMockMode, activeScenario]);
+
   const setScenario = useCallback((scenarioKey) => {
     if (mockScenariosData[scenarioKey]) {
       setActiveScenario(scenarioKey);
-      setData(mockScenariosData[scenarioKey]);
+      if (isMockMode) {
+        setData(mockScenariosData[scenarioKey]);
+      }
     }
-  }, []);
+  }, [isMockMode]);
 
-  // Handle operator manual override
   const applyOverride = useCallback(async (overrideDecision) => {
     if (!isMockMode) {
       try {
-        if (!overrideDecision || overrideDecision.active_lane === 'none') {
+        if (!overrideDecision || overrideDecision.selected_lane === 'none') {
           await deleteOverride();
         } else {
-          await postOverride(overrideDecision.active_lane, overrideDecision.duration || 60);
+          await postOverride(overrideDecision.selected_lane, overrideDecision.duration || 60);
         }
       } catch (err) {
         console.error('Failed to apply live override', err);
@@ -35,22 +52,21 @@ export function useTrafficState() {
     }
 
     if (!overrideDecision) {
-      // Reset to scenario defaults
       setData(mockScenariosData[activeScenario]);
       return;
     }
 
-    const targetLane = overrideDecision.active_lane;
+    const targetLane = overrideDecision.selected_lane;
     const isFlush = targetLane === 'none';
 
     setData((prev) => ({
       ...prev,
       signalDecision: {
         ...prev.signalDecision,
-        active_lane: targetLane,
+        selected_lane: targetLane,
         duration: overrideDecision.duration || 60,
-        priority: overrideDecision.priority || 'MANUAL_OPERATOR_OVERRIDE',
-        reason: overrideDecision.reason || ['Manual override active'],
+        priority: overrideDecision.priority || 'MANUAL',
+        reasons: overrideDecision.reasons || ['Manual override active'],
       },
       signalState: {
         north: isFlush ? 'RED' : targetLane === 'north' ? 'GREEN' : 'RED',
@@ -61,9 +77,10 @@ export function useTrafficState() {
       },
       events: [
         {
-          id: `ev-manual-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+          event_id: `ev-manual-${Date.now()}`,
+          timestamp: Date.now() / 1000,
           type: 'OPERATOR_OVERRIDE',
+          severity: 'warning',
           message: `⚠ MANUAL OVERRIDE: ${overrideDecision.priority} (${targetLane.toUpperCase()})`,
         },
         ...prev.events,
@@ -71,7 +88,6 @@ export function useTrafficState() {
     }));
   }, [activeScenario, isMockMode]);
 
-  // Countdown timer effect for visual presentation in mock mode
   useEffect(() => {
     if (!isMockMode) return;
 
@@ -94,17 +110,23 @@ export function useTrafficState() {
     return () => clearInterval(timer);
   }, [isMockMode]);
 
-  // WebSocket listener when live mode is toggled on
   useEffect(() => {
     if (isMockMode) return;
 
     const wsClient = createTrafficWebSocket({
       onMessage: (incoming) => {
-        if (incoming?.trafficState) {
-          setData((prev) => ({
-            ...prev,
-            ...incoming,
-          }));
+        if (incoming?.trafficState || incoming?.signalDecision || incoming?.signalState) {
+          setData((prev) => {
+            const newData = { ...prev };
+            if (incoming.trafficState) newData.trafficState = incoming.trafficState;
+            if (incoming.signalDecision) newData.signalDecision = incoming.signalDecision;
+            if (incoming.signalState) newData.signalState = incoming.signalState;
+            if (incoming.systemStatus) newData.systemStatus = incoming.systemStatus;
+            if (incoming.events) newData.events = incoming.events;
+            if (incoming.approachDetections !== undefined) newData.approachDetections = incoming.approachDetections;
+            if (incoming.safetyResult !== undefined) newData.safetyResult = incoming.safetyResult;
+            return newData;
+          });
         }
       },
       onStatusChange: (status) => {
@@ -126,6 +148,8 @@ export function useTrafficState() {
     signalState: data.signalState,
     systemStatus: data.systemStatus,
     events: data.events || [],
+    approachDetections: data.approachDetections || {},
+    safetyResult: data.safetyResult || null,
     activeScenario,
     setScenario,
     isMockMode,

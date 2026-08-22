@@ -16,7 +16,7 @@ export async function fetchSystemStatus() {
 export async function uploadTrafficVideo(file) {
   try {
     const formData = new FormData();
-    formData.append('video', file);
+    formData.append('file', file);
 
     const response = await fetch(`${API_BASE_URL}/api/v1/video/upload`, {
       method: 'POST',
@@ -27,6 +27,24 @@ export async function uploadTrafficVideo(file) {
     return await response.json();
   } catch (error) {
     console.warn('[AegisFlow API] Video upload failed:', error.message);
+    throw error;
+  }
+}
+
+export async function uploadTrafficImage(file) {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) throw new Error(`Upload failed with status: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.warn('[AegisFlow API] Image upload failed:', error.message);
     throw error;
   }
 }
@@ -106,3 +124,45 @@ export async function clearEmergency() {
     throw error;
   }
 }
+
+
+// ═══════════════════════════════════════════════════════════
+//  4-APPROACH PER-DIRECTION UPLOAD FUNCTIONS
+// ═══════════════════════════════════════════════════════════
+
+export async function uploadApproachVideo(approach, file) {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/video/upload/${approach}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) throw new Error(`Approach video upload failed: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.warn(`[AegisFlow API] Approach video upload failed for ${approach}:`, error.message);
+    throw error;
+  }
+}
+
+export async function uploadApproachImage(approach, file) {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/image/upload/${approach}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) throw new Error(`Approach image upload failed: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.warn(`[AegisFlow API] Approach image upload failed for ${approach}:`, error.message);
+    throw error;
+  }
+}
+

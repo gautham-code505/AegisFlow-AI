@@ -38,10 +38,12 @@ class WebSocketManager:
         signal_state: Optional[SignalState],
         system_status: SystemStatus,
         events: List[Event],
+        approach_detections: Optional[dict] = None,
+        safety_result: Optional[dict] = None,
     ) -> None:
         """
         Broadcasts unified snapshot to all active clients.
-        Phase 3: Exposes real canonical SignalState.
+        Includes per-approach detection metadata and safety validation results.
         """
         payload = {
             "trafficState": traffic_state.model_dump() if traffic_state else None,
@@ -49,6 +51,8 @@ class WebSocketManager:
             "signalState": signal_state.model_dump() if signal_state else None,
             "systemStatus": system_status.model_dump(),
             "events": [e.model_dump() for e in events],
+            "approachDetections": approach_detections or {},
+            "safetyResult": safety_result,
         }
 
         stale_connections: List[WebSocket] = []

@@ -174,3 +174,201 @@ class VisionAdapter:
         finally:
             vid_proc.release()
             logger.info(f"Video processing complete. Annotated output saved to {output_video}")
+
+    def process_image(self, input_image: str, output_image: str) -> TrafficState:
+        """
+        Process a single image file, returning a TrafficState snapshot and writing
+        the annotated image to output_image.
+        """
+        self._ensure_detector()
+        
+        frame = cv2.imread(input_image)
+        if frame is None:
+            raise ValueError(f"Failed to read image {input_image}")
+            
+        # 1. Detect
+        detections = self.detector.detect(frame)
+        
+        # 2. Assign to ROIs
+        lane_assignments = []
+        vehicles_per_lane: Dict[str, List[str]] = {lane: [] for lane in self.roi_mgr.lanes.keys()}
+        
+        for det in detections:
+            cx, cy = det['center']
+            cls = det['class']
+            
+            lane = self.roi_mgr.get_lane_for_point(cx, cy)
+            lane_assignments.append(lane)
+            
+            if lane:
+                vehicles_per_lane[lane].append(cls)
+                
+        # 3. Translate to Canonical TrafficState
+        timestamp = time.time()
+        
+        lane_states = {}
+        for lane_str, lane_enum in self.LANE_MAPPING.items():
+            if lane_str not in vehicles_per_lane:
+                lane_states[lane_enum] = LaneState()
+                continue
+                
+            detected_classes = vehicles_per_lane[lane_str]
+            
+            veh_count = 0
+            heavy_count = 0
+            ped_count = 0
+            
+            for cls in detected_classes:
+                if cls == "person":
+                    ped_count += 1
+                elif cls in ["bus", "truck"]:
+                    veh_count += 1
+                    heavy_count += 1
+                elif cls in ["car", "motorcycle", "bicycle"]:
+                    veh_count += 1
+                    
+            occupancy = self.occ_calc.calculate_occupancy(lane_str, detected_classes)
+            
+            lane_states[lane_enum] = LaneState(
+                vehicle_count=veh_count,
+                occupancy=round(occupancy, 3),
+                pedestrian_count=ped_count,
+                heavy_vehicle_count=heavy_count
+            )
+            
+        state = TrafficState(
+            timestamp=timestamp,
+            frame_id=1,
+            source="vision",
+            lanes=lane_states,
+            emergency=EmergencyState(detected=False, lane=None, vehicle_type=None)
+        )
+        
+        # 4. Visualize
+        vis_state = {
+            "lanes": {
+                lane_str: {
+                    "vehicle_count": lane_states[lane_enum].vehicle_count,
+                    "occupancy": lane_states[lane_enum].occupancy
+                } for lane_str, lane_enum in self.LANE_MAPPING.items()
+            }
+        }
+        
+        # Use VideoProcessor drawing methods without full instantiation
+        from vision.video_processor import VideoProcessor
+        vp = VideoProcessor.__new__(VideoProcessor)
+        vp.draw_polygons(frame, self.roi_mgr.get_polygons())
+        vp.draw_detections(frame, detections, lane_assignments)
+        vp.draw_state(frame, vis_state)
+        
+        cv2.imwrite(output_image, frame)
+        logger.info(f"Image processing complete. Annotated output saved to {output_image}")
+        
+        return state
+
+    def process_single_approach_video(
+        self, input_video: str, approach: str, process_every_n_frames: int = 5
+    ):
+        """
+        Process a video file for a single approach direction.
+        All detections in the video are assigned to the specified approach.
+        Returns the final LaneState and detection details from the last processed frame.
+        """
+        self._ensure_detector()
+        approach = approach.lower()
+        if approach not in self.SUPPORTED_APPROACHES:
+            raise ValueError(f"Invalid approach '{approach}'. Must be one of: {self.SUPPORTED_APPROACHES}")
+
+        cap = cv2.VideoCapture(input_video)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file {input_video}")
+
+        frame_count = 0
+        last_lane_state = LaneState()
+        last_detections = []
+
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_count += 1
+                if frame_count % process_every_n_frames != 0:
+                    continue
+
+                detections = self.detector.detect(frame)
+                veh_count = 0
+                heavy_count = 0
+                ped_count = 0
+                detected_classes = []
+
+                for det in detections:
+                    cls = det['class']
+                    detected_classes.append(cls)
+                    if cls == "person":
+                        ped_count += 1
+                    elif cls in ["bus", "truck"]:
+                        veh_count += 1
+                        heavy_count += 1
+                    elif cls in ["car", "motorcycle", "bicycle"]:
+                        veh_count += 1
+
+                occupancy = self.occ_calc.calculate_occupancy(approach, detected_classes)
+
+                last_lane_state = LaneState(
+                    vehicle_count=veh_count,
+                    occupancy=round(occupancy, 3),
+                    pedestrian_count=ped_count,
+                    heavy_vehicle_count=heavy_count,
+                )
+                last_detections = detections
+
+        finally:
+            cap.release()
+
+        logger.info(f"Single-approach video processing complete for {approach}: {last_lane_state.vehicle_count} vehicles")
+        return last_lane_state, last_detections
+
+    def process_single_approach_image(self, input_image: str, approach: str):
+        """
+        Process a single image for a single approach direction.
+        All detections are assigned to the specified approach.
+        Returns LaneState and detection details.
+        """
+        self._ensure_detector()
+        approach = approach.lower()
+        if approach not in self.SUPPORTED_APPROACHES:
+            raise ValueError(f"Invalid approach '{approach}'. Must be one of: {self.SUPPORTED_APPROACHES}")
+
+        frame = cv2.imread(input_image)
+        if frame is None:
+            raise ValueError(f"Failed to read image {input_image}")
+
+        detections = self.detector.detect(frame)
+        veh_count = 0
+        heavy_count = 0
+        ped_count = 0
+        detected_classes = []
+
+        for det in detections:
+            cls = det['class']
+            detected_classes.append(cls)
+            if cls == "person":
+                ped_count += 1
+            elif cls in ["bus", "truck"]:
+                veh_count += 1
+                heavy_count += 1
+            elif cls in ["car", "motorcycle", "bicycle"]:
+                veh_count += 1
+
+        occupancy = self.occ_calc.calculate_occupancy(approach, detected_classes)
+
+        lane_state = LaneState(
+            vehicle_count=veh_count,
+            occupancy=round(occupancy, 3),
+            pedestrian_count=ped_count,
+            heavy_vehicle_count=heavy_count,
+        )
+
+        logger.info(f"Single-approach image processing complete for {approach}: {lane_state.vehicle_count} vehicles")
+        return lane_state, detections

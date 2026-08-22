@@ -5,8 +5,8 @@ export function OccupancyCard({ laneName, laneData, isActive, isEmergencyLane })
   const vehicleCount = laneData?.vehicle_count || 0;
   const occupancyFraction = laneData?.occupancy || 0;
   const occupancyPercent = Math.round(occupancyFraction * 100);
-  const pedestrians = laneData?.pedestrians || 0;
-  const heavyVehicles = laneData?.heavy_vehicles || 0;
+  const pedestrians = laneData?.pedestrian_count || 0;
+  const heavyVehicles = laneData?.heavy_vehicle_count || 0;
 
   // Semantic color for occupancy bar
   const getOccupancyColor = () => {

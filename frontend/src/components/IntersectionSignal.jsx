@@ -2,7 +2,7 @@ import React from 'react';
 import { Timer, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ShieldAlert } from 'lucide-react';
 
 export function IntersectionSignal({ signalState, signalDecision, trafficState }) {
-  const activeLane = signalDecision?.active_lane || 'north';
+  const activeLane = signalDecision?.selected_lane || 'north';
   const remainingSeconds = signalState?.remaining_seconds ?? 30;
   const isEmergency = trafficState?.emergency?.detected;
 

@@ -122,7 +122,9 @@ def get_snapshot():
         "signalDecision": state_store.get_decision().model_dump() if state_store.get_decision() else None,
         "signalState": current_signal.model_dump(),
         "systemStatus": state_store.get_system_status().model_dump(),
-        "events": [e.model_dump() for e in state_store.get_events()]
+        "events": [e.model_dump() for e in state_store.get_events()],
+        "approachDetections": state_store.get_approach_detections(),
+        "safetyResult": state_store.get_safety_result(),
     }
 
 
@@ -267,6 +269,209 @@ async def upload_video(background_tasks: BackgroundTasks, file: UploadFile = Fil
     return {"status": "processing", "message": f"Video {file.filename} uploaded and processing started in background."}
 
 
+async def process_image_background(input_path: str, output_path: str):
+    """Background task to process the uploaded image through the vision adapter."""
+    try:
+        # Update status to processing
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.ONLINE
+        state_store.set_system_status(current_status)
+        
+        # Process image
+        state = vision_adapter.process_image(input_path, output_path)
+        if simulated_emergency:
+            state.emergency = simulated_emergency
+        await orchestrator.process_traffic_state(state)
+        
+        # Update status to complete/idle
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.OFFLINE
+        state_store.set_system_status(current_status)
+        
+    except Exception as exc:
+        logger.error(f"Background image processing failed: {exc}", exc_info=True)
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.ERROR
+        state_store.set_system_status(current_status)
+
+@app.post("/api/v1/image/upload")
+async def upload_image(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """Uploads an image for processing by the local vision pipeline."""
+    # Ensure image dir exists
+    os.makedirs("data/images", exist_ok=True)
+    input_path = os.path.join("data/images", f"temp_{file.filename}")
+    output_path = os.path.join("data/images", f"output_{file.filename}")
+    
+    # Save the file locally
+    with open(input_path, "wb") as buffer:
+        buffer.write(await file.read())
+        
+    # Start background processing
+    background_tasks.add_task(process_image_background, input_path, output_path)
+    
+    return {"status": "processing", "message": f"Image {file.filename} uploaded and processing started in background."}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  4-APPROACH PER-DIRECTION UPLOAD ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+# Shared state for accumulating per-approach lane results
+_approach_lane_states = {}
+_approach_lock = asyncio.Lock()
+
+
+async def process_approach_video_background(input_path: str, approach: str):
+    """Background task to process an uploaded video for a single approach."""
+    try:
+        current_status = state_store.get_system_status()
+        current_status.camera = Status.ONLINE
+        current_status.vision = Status.ONLINE
+        state_store.set_system_status(current_status)
+
+        lane_state, detections = vision_adapter.process_single_approach_video(
+            input_path, approach, process_every_n_frames=5
+        )
+
+        # Store per-approach detection metadata for frontend
+        det_summary = {}
+        for det in detections:
+            cls = det['class']
+            det_summary[cls] = det_summary.get(cls, 0) + 1
+        state_store.set_approach_detections(approach, {
+            "vehicle_count": lane_state.vehicle_count,
+            "occupancy": lane_state.occupancy,
+            "heavy_vehicle_count": lane_state.heavy_vehicle_count,
+            "pedestrian_count": lane_state.pedestrian_count,
+            "class_breakdown": det_summary,
+            "total_detections": len(detections),
+            "raw_detections": detections,
+        })
+
+        # Accumulate into unified TrafficState
+        async with _approach_lock:
+            _approach_lane_states[approach] = lane_state
+            # Build unified TrafficState from all approaches processed so far
+            from models import LaneState
+            lanes = {}
+            for dir_name in ["north", "south", "east", "west"]:
+                if dir_name in _approach_lane_states:
+                    lanes[Lane(dir_name)] = _approach_lane_states[dir_name]
+                else:
+                    lanes[Lane(dir_name)] = LaneState()
+
+            unified_state = TrafficState(
+                timestamp=time.time(),
+                lanes=lanes,
+                emergency=simulated_emergency or EmergencyState(),
+            )
+            await orchestrator.process_traffic_state(unified_state)
+
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.OFFLINE
+        state_store.set_system_status(current_status)
+
+    except Exception as exc:
+        logger.error(f"Background approach video processing failed for {approach}: {exc}", exc_info=True)
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.ERROR
+        state_store.set_system_status(current_status)
+
+
+async def process_approach_image_background(input_path: str, approach: str):
+    """Background task to process an uploaded image for a single approach."""
+    try:
+        current_status = state_store.get_system_status()
+        current_status.camera = Status.ONLINE
+        current_status.vision = Status.ONLINE
+        state_store.set_system_status(current_status)
+
+        lane_state, detections = vision_adapter.process_single_approach_image(
+            input_path, approach
+        )
+
+        # Store per-approach detection metadata
+        det_summary = {}
+        for det in detections:
+            cls = det['class']
+            det_summary[cls] = det_summary.get(cls, 0) + 1
+        state_store.set_approach_detections(approach, {
+            "vehicle_count": lane_state.vehicle_count,
+            "occupancy": lane_state.occupancy,
+            "heavy_vehicle_count": lane_state.heavy_vehicle_count,
+            "pedestrian_count": lane_state.pedestrian_count,
+            "class_breakdown": det_summary,
+            "total_detections": len(detections),
+            "raw_detections": detections,
+        })
+
+        # Accumulate into unified TrafficState
+        async with _approach_lock:
+            _approach_lane_states[approach] = lane_state
+            from models import LaneState
+            lanes = {}
+            for dir_name in ["north", "south", "east", "west"]:
+                if dir_name in _approach_lane_states:
+                    lanes[Lane(dir_name)] = _approach_lane_states[dir_name]
+                else:
+                    lanes[Lane(dir_name)] = LaneState()
+
+            unified_state = TrafficState(
+                timestamp=time.time(),
+                lanes=lanes,
+                emergency=simulated_emergency or EmergencyState(),
+            )
+            await orchestrator.process_traffic_state(unified_state)
+
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.OFFLINE
+        state_store.set_system_status(current_status)
+
+    except Exception as exc:
+        logger.error(f"Background approach image processing failed for {approach}: {exc}", exc_info=True)
+        current_status = state_store.get_system_status()
+        current_status.vision = Status.ERROR
+        state_store.set_system_status(current_status)
+
+
+@app.post("/api/v1/video/upload/{approach}")
+async def upload_approach_video(approach: str, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """Uploads a video for a single approach direction (north/south/east/west)."""
+    approach = approach.lower().strip()
+    if approach not in ["north", "south", "east", "west"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid approach '{approach}'. Must be one of: north, south, east, west"
+        )
+
+    os.makedirs("data/videos", exist_ok=True)
+    input_path = os.path.join("data/videos", f"approach_{approach}_{file.filename}")
+    with open(input_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    background_tasks.add_task(process_approach_video_background, input_path, approach)
+    return {"status": "processing", "approach": approach, "message": f"Video for {approach.upper()} approach uploaded and processing started."}
+
+
+@app.post("/api/v1/image/upload/{approach}")
+async def upload_approach_image(approach: str, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """Uploads an image for a single approach direction (north/south/east/west)."""
+    approach = approach.lower().strip()
+    if approach not in ["north", "south", "east", "west"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid approach '{approach}'. Must be one of: north, south, east, west"
+        )
+
+    os.makedirs("data/images", exist_ok=True)
+    input_path = os.path.join("data/images", f"approach_{approach}_{file.filename}")
+    with open(input_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    background_tasks.add_task(process_approach_image_background, input_path, approach)
+    return {"status": "processing", "approach": approach, "message": f"Image for {approach.upper()} approach uploaded and processing started."}
+
+
 @app.post("/api/v1/demo/emergency/clear", response_model=dict)
 async def post_demo_emergency_clear():
     """Clears any active simulated emergency event."""
@@ -340,6 +545,8 @@ async def websocket_traffic_endpoint(websocket: WebSocket):
             "signalState": current_signal.model_dump(),
             "systemStatus": state_store.get_system_status().model_dump(),
             "events": [e.model_dump() for e in state_store.get_events()],
+            "approachDetections": state_store.get_approach_detections(),
+            "safetyResult": state_store.get_safety_result(),
         })
 
         # Keep connection open and receive optional client heartbeats/messages

@@ -7,7 +7,7 @@ latest SignalDecision, latest SignalState, current SystemStatus, and a bounded e
 
 import time
 import threading
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from models import (
     TrafficState,
     SignalDecision,
@@ -29,6 +29,8 @@ class StateStore:
         self._signal_decision: Optional[SignalDecision] = None
         self._signal_state: Optional[SignalState] = None
         self._events: List[Event] = []
+        self._approach_detections: Dict[str, Any] = {}
+        self._safety_result: Optional[Dict[str, Any]] = None
         self._system_status: SystemStatus = SystemStatus(
             timestamp=time.time(),
             mode=SystemMode.LOCAL,
@@ -80,6 +82,24 @@ class StateStore:
     def set_system_status(self, status: SystemStatus) -> None:
         with self._lock:
             self._system_status = status
+
+    def set_approach_detections(self, approach: str, detections: Dict[str, Any]) -> None:
+        """Store per-approach detection metadata for frontend display."""
+        with self._lock:
+            self._approach_detections[approach.lower()] = detections
+
+    def get_approach_detections(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self._approach_detections)
+
+    def set_safety_result(self, result: Dict[str, Any]) -> None:
+        """Store the latest safety validation result for frontend display."""
+        with self._lock:
+            self._safety_result = result
+
+    def get_safety_result(self) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            return self._safety_result
 
     def add_event(self, event: Event) -> None:
         with self._lock:
