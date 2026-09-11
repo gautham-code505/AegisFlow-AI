@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from models import TrafficState, LaneState, EmergencyState, Lane
 
 
+import json
 def test_valid_traffic_state():
     """1. Test creating a valid TrafficState with all 4 lanes."""
     ts = TrafficState(
@@ -27,6 +28,25 @@ def test_valid_traffic_state():
     assert ts.lanes[Lane.NORTH].occupancy == 0.4
     assert ts.lanes[Lane.NORTH].pedestrian_count == 2
     assert ts.lanes[Lane.NORTH].heavy_vehicle_count == 1
+    # Default tracking metrics should be 0
+    assert ts.lanes[Lane.NORTH].queued_vehicle_count == 0
+    assert ts.lanes[Lane.NORTH].moving_vehicle_count == 0
+    
+def test_tracking_fields():
+    """Test explicit tracking field initialization."""
+    lane = LaneState(queued_vehicle_count=5, moving_vehicle_count=2)
+    assert lane.queued_vehicle_count == 5
+    assert lane.moving_vehicle_count == 2
+    
+def test_tracking_fields_serialization():
+    """Test JSON serialization includes tracking fields."""
+    lane = LaneState(vehicle_count=10, queued_vehicle_count=5, moving_vehicle_count=2)
+    data = lane.model_dump()
+    assert data["queued_vehicle_count"] == 5
+    assert data["moving_vehicle_count"] == 2
+    # Ensure it's in the json dump
+    json_str = lane.model_dump_json()
+    assert "queued_vehicle_count" in json_str
 
 
 def test_invalid_occupancy():
@@ -48,6 +68,12 @@ def test_negative_vehicle_count():
 
     with pytest.raises(ValidationError):
         LaneState(heavy_vehicle_count=-2)
+
+    with pytest.raises(ValidationError):
+        LaneState(queued_vehicle_count=-1)
+        
+    with pytest.raises(ValidationError):
+        LaneState(moving_vehicle_count=-1)
 
 
 def test_invalid_lane_name():

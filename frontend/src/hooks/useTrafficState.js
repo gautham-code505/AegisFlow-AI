@@ -10,21 +10,33 @@ const EMPTY_STATE = {
   systemStatus: null,
   events: [],
   approachDetections: {},
-  safetyResult: null
+  approachStatuses: {},
+  safetyResult: null,
+  measurements: [],
+  analytics: {}
 };
+
+// 3 seconds threshold for UI data freshness (telemetry snapshot heartbeat).
+// NOTE: This represents UI data freshness, NOT the traffic controller's safety mechanism (SafetyValidator).
+const STALE_THRESHOLD_MS = 3000;
 
 export function useTrafficState() {
   const [activeScenario, setActiveScenario] = useState(SCENARIOS.NORMAL);
   const [isMockMode, setIsMockMode] = useState(false);
   const [wsStatus, setWsStatus] = useState('DISCONNECTED');
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [isStale, setIsStale] = useState(false);
 
   const [data, setData] = useState(EMPTY_STATE);
 
   useEffect(() => {
     if (isMockMode) {
       setData(mockScenariosData[activeScenario]);
+      setIsStale(false);
     } else {
       setData(EMPTY_STATE);
+      setLastUpdated(null);
+      setIsStale(false);
     }
   }, [isMockMode, activeScenario]);
 
@@ -88,6 +100,7 @@ export function useTrafficState() {
     }));
   }, [activeScenario, isMockMode]);
 
+  // Handle mock mode countdowns
   useEffect(() => {
     if (!isMockMode) return;
 
@@ -110,11 +123,15 @@ export function useTrafficState() {
     return () => clearInterval(timer);
   }, [isMockMode]);
 
+  // Real WebSocket connection
   useEffect(() => {
     if (isMockMode) return;
 
     const wsClient = createTrafficWebSocket({
       onMessage: (incoming) => {
+        setLastUpdated(Date.now());
+        setIsStale(false);
+        
         if (incoming?.trafficState || incoming?.signalDecision || incoming?.signalState) {
           setData((prev) => {
             const newData = { ...prev };
@@ -124,13 +141,19 @@ export function useTrafficState() {
             if (incoming.systemStatus) newData.systemStatus = incoming.systemStatus;
             if (incoming.events) newData.events = incoming.events;
             if (incoming.approachDetections !== undefined) newData.approachDetections = incoming.approachDetections;
+            if (incoming.approachStatuses !== undefined) newData.approachStatuses = incoming.approachStatuses;
             if (incoming.safetyResult !== undefined) newData.safetyResult = incoming.safetyResult;
+            if (incoming.measurements !== undefined) newData.measurements = incoming.measurements;
+            if (incoming.analytics !== undefined) newData.analytics = incoming.analytics;
             return newData;
           });
         }
       },
       onStatusChange: (status) => {
         setWsStatus(status);
+        if (status === 'DISCONNECTED' || status === 'ERROR') {
+            setIsStale(true);
+        }
       },
       onError: (err) => {
         console.warn('[useTrafficState] WebSocket error:', err);
@@ -142,19 +165,36 @@ export function useTrafficState() {
     };
   }, [isMockMode]);
 
+  // Staleness checker
+  useEffect(() => {
+    if (isMockMode || wsStatus !== 'CONNECTED') return;
+
+    const interval = setInterval(() => {
+      if (lastUpdated && Date.now() - lastUpdated > STALE_THRESHOLD_MS) {
+        setIsStale(true);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isMockMode, wsStatus, lastUpdated]);
+
   return {
     trafficState: data.trafficState,
     signalDecision: data.signalDecision,
     signalState: data.signalState,
     systemStatus: data.systemStatus,
     events: data.events || [],
+    measurements: data.measurements || [],
+    analytics: data.analytics || {},
     approachDetections: data.approachDetections || {},
+    approachStatuses: data.approachStatuses || {},
     safetyResult: data.safetyResult || null,
     activeScenario,
     setScenario,
     isMockMode,
     setIsMockMode,
     wsStatus,
+    isStale,
     applyOverride,
   };
 }

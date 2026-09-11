@@ -3,10 +3,11 @@ import { Siren, ShieldCheck, AlertOctagon } from 'lucide-react';
 
 export function EmergencyAlert({ emergency }) {
   const isEmergency = emergency?.detected;
-  const lane = emergency?.lane || 'EAST';
+  const lane = emergency?.lane;
   const vehicleType = emergency?.vehicle_type || 'AMBULANCE';
+  const confidence = emergency?.confidence;
 
-  if (!isEmergency) {
+  if (!isEmergency || !lane) {
     return (
       <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs mb-4">
         <div className="flex items-center gap-2 text-slate-300">
@@ -40,6 +41,11 @@ export function EmergencyAlert({ emergency }) {
           <p className="text-rose-200 mt-0.5 font-medium">
             Emergency Vehicle Detected: <strong className="text-white uppercase">{vehicleType}</strong> on{' '}
             <strong className="text-white uppercase font-bold">{lane} APPROACH</strong>
+            {confidence && (
+              <span className="ml-2 text-rose-300 text-[10px]">
+                (Confidence: {(confidence * 100).toFixed(1)}%)
+              </span>
+            )}
           </p>
         </div>
       </div>

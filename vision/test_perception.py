@@ -1,6 +1,6 @@
 import unittest
-from roi import ROIManager
-from occupancy import OccupancyCalculator
+from vision.roi import ROIManager
+from vision.occupancy import OccupancyCalculator
 import json
 import os
 

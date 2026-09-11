@@ -32,9 +32,9 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         }
         decision = self.engine.decide(state)
-        self.assertEqual(decision.active_lane, "north")
-        self.assertEqual(decision.priority, "normal")
-        self.assertTrue(any("occupancy" in r.lower() for r in decision.reason))
+        self.assertEqual(decision.selected_lane.value, "north")
+        self.assertEqual(decision.priority.value, "NORMAL")
+        self.assertTrue(any("occupancy" in r.lower() for r in decision.reasons))
 
     def test_vehicle_demand(self):
         # East has more vehicles, same occupancies
@@ -49,8 +49,8 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         }
         decision = self.engine.decide(state)
-        self.assertEqual(decision.active_lane, "east")
-        self.assertTrue(any("vehicles" in r.lower() for r in decision.reason))
+        self.assertEqual(decision.selected_lane.value, "east")
+        self.assertTrue(any("vehicles" in r.lower() for r in decision.reasons))
 
     def test_emergency_priority(self):
         # Emergency detected on West lane
@@ -65,9 +65,9 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": True, "lane": "west"}
         }
         decision = self.engine.decide(state)
-        self.assertEqual(decision.active_lane, "west")
-        self.assertEqual(decision.priority, "emergency")
-        self.assertTrue(any("emergency" in r.lower() for r in decision.reason))
+        self.assertEqual(decision.selected_lane.value, "west")
+        self.assertEqual(decision.priority.value, "EMERGENCY")
+        self.assertTrue(any("emergency" in r.lower() for r in decision.reasons))
 
     def test_invalid_emergency(self):
         # Emergency detected but lane is invalid
@@ -83,8 +83,8 @@ class TestDecisionEngine(unittest.TestCase):
         }
         decision = self.engine.decide(state)
         # Should ignore emergency and select north (highest demand)
-        self.assertEqual(decision.active_lane, "north")
-        self.assertEqual(decision.priority, "normal")
+        self.assertEqual(decision.selected_lane.value, "north")
+        self.assertEqual(decision.priority.value, "NORMAL")
 
     def test_waiting_time(self):
         # Track that waiting times increase for skipped lanes
@@ -99,7 +99,7 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         }
         decision1 = self.engine.decide(state1)
-        self.assertEqual(decision1.active_lane, "north")
+        self.assertEqual(decision1.selected_lane.value, "north")
         
         # South, East, West should have been skipped, waiting times should start tracking
         # Let's run a second decision with timestamp 20.0 (delta = 10.0)
@@ -173,9 +173,9 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         })
         
-        self.assertEqual(decision.active_lane, "south")
-        self.assertEqual(decision.priority, "high")
-        self.assertTrue(any("starvation" in r.lower() or "waiting threshold" in r.lower() for r in decision.reason))
+        self.assertEqual(decision.selected_lane.value, "south")
+        self.assertEqual(decision.priority.value, "HIGH")
+        self.assertTrue(any("starvation" in r.lower() or "waiting threshold" in r.lower() for r in decision.reasons))
 
     def test_green_time_limits(self):
         # 1. Very busy lane should reach MAX_GREEN_TIME
@@ -219,9 +219,9 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         }
         decision = self.engine.decide(state)
-        self.assertIn(decision.active_lane, self.config.VALID_LANES)
-        self.assertEqual(decision.priority, "normal")
-        self.assertTrue(any("empty" in r.lower() for r in decision.reason))
+        self.assertIn(decision.selected_lane.value, self.config.VALID_LANES)
+        self.assertEqual(decision.priority.value, "NORMAL")
+        self.assertTrue(any("empty" in r.lower() for r in decision.reasons))
 
     def test_invalid_occupancy_range_and_missing_data(self):
         # Malformed / missing parameters should be validation-repaired
@@ -236,7 +236,7 @@ class TestDecisionEngine(unittest.TestCase):
         }
         decision = self.engine.decide(state)
         # Should not crash, and make a deterministic choice
-        self.assertIn(decision.active_lane, self.config.VALID_LANES)
+        self.assertIn(decision.selected_lane.value, self.config.VALID_LANES)
         self.assertTrue(self.config.MIN_GREEN_TIME <= decision.duration <= self.config.MAX_GREEN_TIME)
 
     def test_deterministic_tie_breaking(self):
@@ -253,7 +253,7 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         }
         decision = self.engine.decide(state)
-        self.assertEqual(decision.active_lane, "east")
+        self.assertEqual(decision.selected_lane.value, "east")
 
     def test_only_one_active_lane(self):
         # Ensure only one lane is selected as active
@@ -268,8 +268,8 @@ class TestDecisionEngine(unittest.TestCase):
             "emergency": {"detected": False, "lane": None}
         }
         decision = self.engine.decide(state)
-        self.assertIsInstance(decision.active_lane, str)
-        self.assertIn(decision.active_lane, self.config.VALID_LANES)
+        self.assertIsInstance(decision.selected_lane.value, str)
+        self.assertIn(decision.selected_lane.value, self.config.VALID_LANES)
 
 if __name__ == "__main__":
     unittest.main()

@@ -220,8 +220,10 @@ __marimo__/
 scratch/
 data/videos/output_*.mp4
 data/videos/temp_*.mp4
+data/videos/approach_*.mp4
 data/images/
 frontend/dist/
 frontend/node_modules/
 frontend/.vite/
+*.pt
 

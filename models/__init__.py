@@ -5,34 +5,29 @@ Single source of truth Pydantic models and canonical enums exchanged across:
 Vision Perception -> TrafficState -> Decision Engine -> SignalDecision -> Safety/Controller -> SignalState -> Dashboard.
 """
 
-from .enums import (
-    Lane,
-    SignalColor,
-    SignalPhase,
-    Priority,
-    SystemMode,
-    Status,
-    EventSeverity,
-)
-from .traffic_state import LaneState, EmergencyState, TrafficState
-from .signal_decision import SignalDecision
+from .enums import Lane, SignalColor, SignalPhase, EventSeverity, EventCategory, SystemMode, Status, Priority
+from .traffic_state import TrafficState, LaneState, EmergencyState
 from .signal_state import SignalState
+from .signal_decision import SignalDecision
 from .system_status import SystemStatus
 from .events import Event
+from .measurement import ServiceMeasurement
 
 __all__ = [
     "Lane",
     "SignalColor",
     "SignalPhase",
-    "Priority",
+    "EventSeverity",
+    "EventCategory",
     "SystemMode",
     "Status",
-    "EventSeverity",
+    "Priority",
+    "TrafficState",
     "LaneState",
     "EmergencyState",
-    "TrafficState",
-    "SignalDecision",
     "SignalState",
+    "SignalDecision",
     "SystemStatus",
     "Event",
+    "ServiceMeasurement",
 ]

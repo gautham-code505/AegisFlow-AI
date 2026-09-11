@@ -8,7 +8,7 @@ const APPROACHES = [
   { key: 'west', label: 'West', Icon: ArrowRight, color: 'violet' },
 ];
 
-function ApproachPanel({ approach, trafficState, approachDetections, isActive }) {
+function ApproachPanel({ approach, trafficState, approachDetections, approachStatuses, isActive }) {
   const [mediaUrl, setMediaUrl] = useState(null);
   const [mediaType, setMediaType] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('IDLE');
@@ -42,14 +42,16 @@ function ApproachPanel({ approach, trafficState, approachDetections, isActive })
 
   const laneData = trafficState?.lanes?.[approach.key];
   const detData = approachDetections?.[approach.key];
-  const rawDetections = detData?.raw_detections || [];
+  const status = approachStatuses?.[approach.key] || 'WAITING_FOR_INPUT';
+  const hasInput = status !== 'WAITING_FOR_INPUT';
+  const rawDetections = hasInput ? (detData?.raw_detections || []) : [];
   
-  const vehicleCount = laneData?.vehicle_count ?? detData?.vehicle_count ?? 0;
-  const occupancy = laneData?.occupancy ?? detData?.occupancy ?? 0;
-  const occupancyPct = Math.round(occupancy * 100);
-  const heavyCount = laneData?.heavy_vehicle_count ?? detData?.heavy_vehicle_count ?? 0;
-  const pedCount = laneData?.pedestrian_count ?? detData?.pedestrian_count ?? 0;
-  const classBreakdown = detData?.class_breakdown || {};
+  const vehicleCount = hasInput ? (laneData?.vehicle_count ?? detData?.vehicle_count ?? '-') : '-';
+  const occupancy = hasInput ? (laneData?.occupancy ?? detData?.occupancy ?? 0) : 0;
+  const occupancyPct = hasInput ? ((laneData?.occupancy !== undefined || detData?.occupancy !== undefined) ? Math.round(occupancy * 100) : '-') : '-';
+  const heavyCount = hasInput ? (laneData?.heavy_vehicle_count ?? detData?.heavy_vehicle_count ?? '-') : '-';
+  const pedCount = hasInput ? (laneData?.pedestrian_count ?? detData?.pedestrian_count ?? '-') : '-';
+  const classBreakdown = hasInput ? (detData?.class_breakdown || {}) : {};
   const ApproachIcon = approach.Icon;
 
   const activeBorder = isActive
@@ -107,6 +109,13 @@ function ApproachPanel({ approach, trafficState, approachDetections, isActive })
             onLoad={(e) => setNaturalSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
             className="w-full h-full object-fill opacity-80" 
           />
+        ) : status === 'PROCESSING' ? (
+          <div className="flex flex-col items-center justify-center text-center p-4 opacity-80">
+            <div className="w-6 h-6 border-2 border-slate-400 border-t-emerald-400 rounded-full animate-spin mb-2"></div>
+            <p className="text-[10px] text-emerald-400 font-bold uppercase">
+              Processing...
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center text-center p-4 opacity-60">
             <Camera className={`w-6 h-6 text-${approach.color}-400 mb-1`} />
@@ -162,7 +171,7 @@ function ApproachPanel({ approach, trafficState, approachDetections, isActive })
             <span className="font-bold text-white font-mono">{vehicleCount}</span>
           </div>
           <div className="text-center">
-            <span className="text-slate-500 block mb-0.5">Occupancy</span>
+            <span className="text-slate-500 block mb-0.5 truncate" title="Demand Ratio">Demand Ratio</span>
             <span className={`font-bold font-mono ${occupancyPct >= 75 ? 'text-rose-400' : occupancyPct >= 40 ? 'text-amber-400' : 'text-emerald-400'}`}>
               {occupancyPct}%
             </span>
@@ -192,7 +201,7 @@ function ApproachPanel({ approach, trafficState, approachDetections, isActive })
   );
 }
 
-export function VideoPanel({ systemStatus, trafficState, approachDetections, signalDecision }) {
+export function VideoPanel({ systemStatus, trafficState, approachDetections, approachStatuses, signalDecision }) {
   const activeLane = signalDecision?.selected_lane || 'north';
   const isWarningState = systemStatus?.camera === 'warning' || systemStatus?.ai === 'offline';
 
@@ -231,6 +240,7 @@ export function VideoPanel({ systemStatus, trafficState, approachDetections, sig
             approach={approach}
             trafficState={trafficState}
             approachDetections={approachDetections}
+            approachStatuses={approachStatuses}
             isActive={activeLane === approach.key}
           />
         ))}

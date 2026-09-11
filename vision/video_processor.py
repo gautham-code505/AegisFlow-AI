@@ -1,30 +1,108 @@
 import cv2
 import numpy as np
+import threading
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class VideoProcessor:
-    def __init__(self, input_path: str, output_path: str):
+    def __init__(self, input_path, output_path: str = None, is_live: bool = False):
         self.input_path = input_path
         self.output_path = output_path
-        self.cap = cv2.VideoCapture(input_path)
+        
+        # Determine source type
+        self.is_live = is_live
+        if isinstance(input_path, int):
+            self.is_live = True
+            input_source = input_path
+        elif isinstance(input_path, str):
+            if input_path.isdigit():
+                self.is_live = True
+                input_source = int(input_path)
+            else:
+                lower_path = input_path.lower()
+                if lower_path.startswith(('rtsp://', 'http://', 'https://', 'udp://', 'rtmp://')):
+                    self.is_live = True
+                input_source = input_path
+        else:
+            input_source = input_path
+            
+        self.cap = cv2.VideoCapture(input_source)
         
         if not self.cap.isOpened():
-            raise ValueError(f"Could not open video file {input_path}")
+            raise ValueError(f"Could not open video file/stream {input_path}")
             
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        
+        if self.fps <= 0:
+            self.fps = 30.0
+            
         # Initialize video writer
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.writer = cv2.VideoWriter(output_path, fourcc, self.fps, (self.width, self.height))
+        self.writer = None
+        if output_path is not None:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.writer = cv2.VideoWriter(output_path, fourcc, self.fps, (self.width, self.height))
         
+        # Live Stream Synchronization Primitives
+        self._stop_event = threading.Event()
+        self._frame_lock = threading.Lock()
+        self._latest_frame = None
+        self._has_new_frame = False
+        self._frame_ready = threading.Event()
+        self._stream_ended = False
+        self._capture_thread = None
+        
+        if self.is_live:
+            self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True, name="LiveCaptureThread")
+            self._capture_thread.start()
+            
+    def _capture_loop(self):
+        while not self._stop_event.is_set():
+            ret, frame = self.cap.read()
+            if not ret:
+                # Frame acquisition failed, either temp or permanent end
+                with self._frame_lock:
+                    self._stream_ended = True
+                self._frame_ready.set()
+                break
+                
+            with self._frame_lock:
+                self._latest_frame = (ret, frame)
+                self._has_new_frame = True
+            self._frame_ready.set()
+            
     def read_frame(self):
-        ret, frame = self.cap.read()
-        return ret, frame
-        
+        if self.is_live:
+            while not self._stop_event.is_set():
+                with self._frame_lock:
+                    if self._has_new_frame:
+                        ret, frame = self._latest_frame
+                        self._has_new_frame = False
+                        self._frame_ready.clear()
+                        return ret, frame
+                        
+                # Wait out of lock
+                self._frame_ready.wait(timeout=0.1)
+                
+                if self._stream_ended:
+                    with self._frame_lock:
+                        if not self._has_new_frame:
+                            return False, None
+            return False, None
+        else:
+            return self.cap.read()
+            
     def release(self):
+        self._stop_event.set()
+        self._frame_ready.set()  # Wake up consumer if waiting
+        if self._capture_thread and self._capture_thread.is_alive():
+            self._capture_thread.join(timeout=2.0)
+            
         self.cap.release()
-        self.writer.release()
+        if self.writer is not None:
+            self.writer.release()
         cv2.destroyAllWindows()
         
     def draw_polygons(self, frame, polygons_dict):
@@ -75,4 +153,5 @@ class VideoProcessor:
             y_offset += 25
             
     def write_frame(self, frame):
-        self.writer.write(frame)
+        if self.writer is not None:
+            self.writer.write(frame)

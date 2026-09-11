@@ -36,7 +36,8 @@
     "car": 1.0,
     "bus": 2.5,
     "truck": 2.5,
-    "person": 0.2
+    "person": 0.2,
+    "ambulance": 3.0
   },
   "classes_to_detect": [
     "motorcycle",
@@ -44,6 +45,18 @@
     "car",
     "bus",
     "truck",
-    "person"
-  ]
+    "person",
+    "ambulance"
+  ],
+  "emergency_classes": [
+    "ambulance"
+  ],
+  "tracking": {
+    "timeout_seconds": 2.0,
+    "stationary_pixel_threshold": 5.0,
+    "history_window_frames": 30,
+    "approach_debounce_frames": 3,
+    "stationary_debounce_frames": 3,
+    "moving_debounce_frames": 3
+  }
 }

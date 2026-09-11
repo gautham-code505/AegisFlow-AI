@@ -4,8 +4,9 @@ AegisFlow AI - Event Contract Model
 Represents system audit logs and operational event signals.
 """
 
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from .enums import EventSeverity
+from .enums import EventSeverity, EventCategory, Lane
 
 
 class Event(BaseModel):
@@ -16,5 +17,13 @@ class Event(BaseModel):
         ...,
         description="Event classification type e.g. TRAFFIC_UPDATE, SIGNAL_DECISION, SIGNAL_CHANGED, EMERGENCY_DETECTED, SYSTEM_WARNING, SYSTEM_ERROR, FALLBACK_ACTIVATED, OVERRIDE_REQUEST, OVERRIDE_REJECTED"
     )
+    category: EventCategory = Field(default=EventCategory.SYSTEM, description="Structured event category")
     severity: EventSeverity = Field(default=EventSeverity.INFO, description="Event severity classification")
     message: str = Field(..., description="Human-readable event message description")
+    
+    # Causal and Contextual Linking
+    source: Optional[str] = Field(default=None, description="Component that generated the event")
+    target_lanes: Optional[List[Lane]] = Field(default=None, description="Lanes associated with this event")
+    decision_id: Optional[str] = Field(default=None, description="SignalDecision ID this event is correlated with")
+    measurement_id: Optional[str] = Field(default=None, description="ServiceMeasurement ID this event is correlated with")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Flexible metadata for frontend rendering or debugging")

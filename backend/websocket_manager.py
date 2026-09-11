@@ -6,9 +6,9 @@ Ensures WebSocket client failures/disconnects do not crash the backend loop.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import WebSocket
-from models import TrafficState, SignalDecision, SignalState, SystemStatus, Event
+from models import TrafficState, SignalDecision, SignalState, SystemStatus, Event, ServiceMeasurement
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +38,15 @@ class WebSocketManager:
         signal_state: Optional[SignalState],
         system_status: SystemStatus,
         events: List[Event],
-        approach_detections: Optional[dict] = None,
-        safety_result: Optional[dict] = None,
+        measurements: List[ServiceMeasurement],
+        approach_detections: Optional[Dict[str, Any]] = None,
+        approach_statuses: Optional[Dict[str, str]] = None,
+        safety_result: Optional[Dict[str, Any]] = None,
+        analytics: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Broadcasts unified snapshot to all active clients.
-        Includes per-approach detection metadata and safety validation results.
+        Includes per-approach detection metadata, input lifecycle status, and safety validation results.
         """
         payload = {
             "trafficState": traffic_state.model_dump() if traffic_state else None,
@@ -51,8 +54,11 @@ class WebSocketManager:
             "signalState": signal_state.model_dump() if signal_state else None,
             "systemStatus": system_status.model_dump(),
             "events": [e.model_dump() for e in events],
+            "measurements": [m.model_dump() for m in measurements] if measurements else [],
             "approachDetections": approach_detections or {},
+            "approachStatuses": approach_statuses or {},
             "safetyResult": safety_result,
+            "analytics": analytics or {},
         }
 
         stale_connections: List[WebSocket] = []

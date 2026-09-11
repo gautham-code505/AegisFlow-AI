@@ -8,9 +8,10 @@ traffic state observations, current controller state, and safety rules before ex
 import time
 import logging
 from typing import Optional, List
-from models import TrafficState, SignalDecision, SignalState, Priority
+from models import TrafficState, SignalDecision, SignalState, Priority, Lane
 from controller.config import ControllerConfig, DEFAULT_CONTROLLER_CONFIG
 from .models import ValidationResult, ValidationStatus
+from .conflicts import ConflictMatrix
 from .rules import (
     check_lane_validity,
     check_duration_bounds,
@@ -34,6 +35,7 @@ class SafetyValidator:
         proposed_decision: Optional[SignalDecision],
         traffic_state: Optional[TrafficState],
         current_time: Optional[float] = None,
+        target_lanes: Optional[List[Lane]] = None,
     ) -> ValidationResult:
         """
         Evaluates safety rules for a proposed SignalDecision.
@@ -84,6 +86,12 @@ class SafetyValidator:
             )
             if min_green_reasons:
                 rejection_reasons.extend(min_green_reasons)
+
+        # 7. Check target lanes conflict
+        if target_lanes is not None:
+            conflict_reasons = ConflictMatrix.check_target_lanes(target_lanes)
+            if conflict_reasons:
+                rejection_reasons.extend(conflict_reasons)
 
         # If any rejection rules fired: REJECT decision
         if rejection_reasons:

@@ -1,5 +1,5 @@
 from typing import Dict, Any, Tuple
-from .models import TrafficState
+from models import TrafficState
 from .config import DecisionEngineConfig
 
 def calculate_lane_scores(
@@ -7,66 +7,60 @@ def calculate_lane_scores(
     waiting_times: Dict[str, float],
     consecutive_skips: Dict[str, int],
     config: DecisionEngineConfig
-) -> Dict[str, Tuple[float, Dict[str, float]]]:
+) -> Dict[str, Tuple[float, Dict[str, Any]]]:
     """
-    Calculates traffic scores for all lanes based on occupancy, vehicle counts,
-    waiting times, pedestrian demand, and starvation factors.
+    Calculates traffic scores for all lanes based on traffic demand intelligence.
+    
+    When tracking is available, relies exclusively on queued vehicle counts
+    and observed average waiting times. When unavailable, falls back to
+    occupancy and raw vehicle counts.
     
     Returns a dictionary mapping lane name to a tuple of (total_score, score_breakdown).
     """
-    scores: Dict[str, Tuple[float, Dict[str, float]]] = {}
+    scores: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
-    for lane_name, lane_state in state.lanes.items():
-        # 1. Occupancy component
-        occ = lane_state.occupancy
+    for lane_enum, lane_state in state.lanes.items():
+        lane_name = lane_enum.value
         
-        # 2. Normalized vehicle count
-        norm_veh = min(1.0, lane_state.vehicle_count / max(1, config.MAX_EXPECTED_VEHICLES))
-
-        # 3. Normalized waiting time
-        wait_time = waiting_times.get(lane_name, 0.0)
-        norm_wait = min(1.0, wait_time / max(0.1, config.STARVATION_THRESHOLD))
-
-        # 4. Pedestrian demand
-        ped_count = 0
-        if state.pedestrians is not None:
-            ped_count = state.pedestrians.get(lane_name, 0)
-        norm_ped = min(1.0, ped_count / max(1, config.MAX_EXPECTED_PEDESTRIANS))
-
-        # 5. Starvation factor
-        # Continuous representation: how close the lane is to starvation
-        skips = consecutive_skips.get(lane_name, 0)
-        starvation_factor = max(
-            min(1.0, wait_time / max(0.1, config.STARVATION_THRESHOLD)),
-            min(1.0, skips / max(1, config.MAX_CONSECUTIVE_SKIPS))
-        )
-
-        # Weighted calculation
-        occ_component = config.OCCUPANCY_WEIGHT * occ
-        veh_component = config.VEHICLE_WEIGHT * norm_veh
-        wait_component = config.WAITING_WEIGHT * norm_wait
-        ped_component = config.PEDESTRIAN_WEIGHT * norm_ped
-        starv_component = config.STARVATION_WEIGHT * starvation_factor
-
-        total_score = (
-            occ_component +
-            veh_component +
-            wait_component +
-            ped_component +
-            starv_component
-        )
+        occ_component = 0.0
+        queue_component = 0.0
+        delay_component = 0.0
+        veh_component = 0.0
+        
+        if getattr(state, "has_tracking_data", False):
+            # 1. Tracking Available: Use strict queued and delay demand
+            # Normalize queue against max expected queue
+            norm_queue = min(1.0, getattr(lane_state, "queued_vehicle_count", 0) / max(1, config.MAX_EXPECTED_QUEUED))
+            queue_component = config.TRACKING_QUEUE_WEIGHT * norm_queue
+            
+            # Normalize delay against max expected observed wait
+            norm_delay = min(1.0, getattr(lane_state, "observed_average_wait", 0.0) / max(0.1, config.MAX_EXPECTED_OBSERVED_WAIT))
+            delay_component = config.TRACKING_DELAY_WEIGHT * norm_delay
+            
+            used_tracking = True
+            total_score = queue_component + delay_component
+        else:
+            # 2. Tracking Unavailable: Fallback to occupancy and raw vehicles
+            # Normalize raw vehicle count
+            norm_veh = min(1.0, lane_state.vehicle_count / max(1, config.MAX_EXPECTED_VEHICLES))
+            veh_component = config.FALLBACK_VEHICLE_WEIGHT * norm_veh
+            
+            # Occupancy is inherently 0-1
+            occ_component = config.FALLBACK_OCCUPANCY_WEIGHT * lane_state.occupancy
+            
+            used_tracking = False
+            total_score = occ_component + veh_component
 
         breakdown = {
+            "queue_component": queue_component,
+            "delay_component": delay_component,
             "occupancy_component": occ_component,
             "vehicle_component": veh_component,
-            "waiting_component": wait_component,
-            "pedestrian_component": ped_component,
-            "starvation_component": starv_component,
-            "raw_occupancy": occ,
+            "raw_occupancy": lane_state.occupancy,
             "raw_vehicle_count": lane_state.vehicle_count,
-            "raw_waiting_time": wait_time,
-            "raw_pedestrian_count": ped_count,
-            "raw_skips": skips
+            "raw_queued_vehicle_count": getattr(lane_state, "queued_vehicle_count", 0),
+            "raw_observed_wait": getattr(lane_state, "observed_average_wait", 0.0),
+            "used_tracking": used_tracking
         }
 
         scores[lane_name] = (total_score, breakdown)

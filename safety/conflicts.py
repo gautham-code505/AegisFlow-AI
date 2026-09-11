@@ -5,7 +5,7 @@ Defines legal approach relationships and evaluates signal head states against
 explicitly permitted safe phase groups. Prevents conflicting cross-traffic green phases.
 """
 
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Iterable
 from models import Lane, SignalColor, SignalState
 from .phase_groups import is_compatible, ALLOWED_GREEN_LANE_SETS
 
@@ -13,8 +13,26 @@ from .phase_groups import is_compatible, ALLOWED_GREEN_LANE_SETS
 class ConflictMatrix:
     """Evaluates 4-way signal light configurations against permitted safe phase groups."""
 
-    @staticmethod
-    def check_conflict(signal_colors: Dict[Lane, SignalColor]) -> List[str]:
+    @classmethod
+    def check_target_lanes(cls, target_lanes: Iterable[Lane]) -> List[str]:
+        """
+        Checks a proposed set of target lanes for conflict violations.
+        Returns a list of conflict error messages if the set of approaches
+        does not match any explicitly declared safe phase group.
+        """
+        active_approaches = set(target_lanes)
+        conflicts: List[str] = []
+        if not is_compatible(active_approaches):
+            active_names = sorted([l.value.upper() for l in active_approaches])
+            conflicts.append(
+                f"SAFETY CONFLICT VIOLATION: Active approach combination ({', '.join(active_names)}) "
+                "is not an explicitly permitted safe phase group. Permitted groups: "
+                "NORTH+SOUTH, EAST+WEST, single approach phases, or ALL_RED."
+            )
+        return conflicts
+
+    @classmethod
+    def check_conflict(cls, signal_colors: Dict[Lane, SignalColor]) -> List[str]:
         """
         Checks signal light colors for conflict violations.
         Returns a list of conflict error messages if the set of active (GREEN or YELLOW)
@@ -25,16 +43,7 @@ class ConflictMatrix:
             if color in (SignalColor.GREEN, SignalColor.YELLOW):
                 active_approaches.add(lane)
 
-        conflicts: List[str] = []
-        if not is_compatible(active_approaches):
-            active_names = sorted([l.value.upper() for l in active_approaches])
-            conflicts.append(
-                f"SAFETY CONFLICT VIOLATION: Active approach combination ({', '.join(active_names)}) "
-                "is not an explicitly permitted safe phase group. Permitted groups: "
-                "NORTH+SOUTH, EAST+WEST, single approach phases, or ALL_RED."
-            )
-
-        return conflicts
+        return cls.check_target_lanes(active_approaches)
 
     @classmethod
     def is_safe_signal_state(cls, signal_state: SignalState) -> bool:

@@ -58,3 +58,13 @@ class EventSeverity(StrEnum):
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
+
+
+class EventCategory(StrEnum):
+    DECISION = "DECISION"
+    SIGNAL = "SIGNAL"
+    SAFETY = "SAFETY"
+    EMERGENCY = "EMERGENCY"
+    MEASUREMENT = "MEASUREMENT"
+    SYSTEM = "SYSTEM"
+    ERROR = "ERROR"

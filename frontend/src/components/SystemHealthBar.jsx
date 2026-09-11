@@ -1,20 +1,36 @@
 import React from 'react';
 import { Activity, Camera, Eye, Cpu, Shield, HardDrive, WifiOff, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 
-export function SystemHealth({ systemStatus }) {
+export function SystemHealthBar({ systemStatus, wsStatus, isStale }) {
+  const isConnected = wsStatus === 'CONNECTED';
+  
+  const getModStatus = (key, defaultStatus = 'offline') => {
+    if (!isConnected) return 'offline';
+    const statusVal = systemStatus?.[key] || defaultStatus;
+    return typeof statusVal === 'string' ? statusVal.toLowerCase() : 'offline';
+  };
+
+  const getConnectionStatus = () => {
+    if (!isConnected) return { label: 'DISCONNECTED', status: 'offline' };
+    if (isStale) return { label: 'STALE DATA', status: 'warning' };
+    return { label: 'LIVE DATA', status: 'online' };
+  };
+
+  const connState = getConnectionStatus();
+
   const modules = [
-    { key: 'camera', name: 'Camera Vision', icon: Camera, status: systemStatus?.camera || 'online' },
-    { key: 'ai', name: 'YOLOv8 AI Model', icon: Eye, status: systemStatus?.ai || 'online' },
-    { key: 'decision_engine', name: 'Decision Engine', icon: Cpu, status: systemStatus?.decision_engine || 'online' },
-    { key: 'safety', name: 'Safety Validator', icon: Shield, status: 'online' },
-    { key: 'controller', name: 'ESP32 Hardware Controller', icon: HardDrive, status: systemStatus?.controller || 'online' },
-    { key: 'internet', name: 'External Internet', icon: WifiOff, status: 'not_required' },
+    { key: 'camera', name: 'Camera Vision', icon: Camera, status: getModStatus('camera') },
+    { key: 'vision', name: 'YOLOv8 AI Model', icon: Eye, status: getModStatus('vision') },
+    { key: 'decision_engine', name: 'Decision Engine', icon: Cpu, status: getModStatus('decision_engine') },
+    { key: 'safety', name: 'Safety Validator', icon: Shield, status: getModStatus('safety') },
+    { key: 'controller', name: 'ESP32 Controller', icon: HardDrive, status: getModStatus('controller') },
+    { key: 'connection', name: 'Data Freshness', icon: Activity, status: connState.status, overrideLabel: connState.label },
   ];
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, overrideLabel) => {
     if (status === 'online') {
       return {
-        label: 'ONLINE',
+        label: overrideLabel || 'ONLINE',
         bg: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80',
         dot: 'bg-emerald-400',
         Icon: CheckCircle,
@@ -22,7 +38,7 @@ export function SystemHealth({ systemStatus }) {
     }
     if (status === 'warning' || status === 'fallback') {
       return {
-        label: status.toUpperCase(),
+        label: overrideLabel || status.toUpperCase(),
         bg: 'bg-amber-950/60 text-amber-300 border-amber-800/80',
         dot: 'bg-amber-400 animate-pulse',
         Icon: AlertTriangle,
@@ -30,17 +46,17 @@ export function SystemHealth({ systemStatus }) {
     }
     if (status === 'offline') {
       return {
-        label: 'OFFLINE',
+        label: overrideLabel || 'OFFLINE',
         bg: 'bg-rose-950/60 text-rose-300 border-rose-800/80',
         dot: 'bg-rose-500',
         Icon: XCircle,
       };
     }
     return {
-      label: 'OFFLINE / NOT REQ',
+      label: 'UNAVAILABLE',
       bg: 'bg-slate-900 text-slate-400 border-slate-700',
       dot: 'bg-slate-500',
-      Icon: WifiOff,
+      Icon: XCircle,
     };
   };
 
@@ -55,15 +71,19 @@ export function SystemHealth({ systemStatus }) {
             Subsystem Health Matrix
           </h2>
         </div>
-        <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700 rounded">
-          EDGE NODE: HEALTHY
+        <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+          connState.status === 'online' ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 
+          connState.status === 'warning' ? 'bg-amber-950 text-amber-300 border-amber-700' : 
+          'bg-rose-950 text-rose-300 border-rose-700'
+        }`}>
+          DATA FRESHNESS: {connState.label}
         </span>
       </div>
 
       {/* Grid of Subsystems */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 my-1">
         {modules.map((mod) => {
-          const { label, bg, dot, Icon } = getStatusBadge(mod.status);
+          const { label, bg, dot, Icon } = getStatusBadge(mod.status, mod.overrideLabel);
           const ModIcon = mod.icon;
           return (
             <div

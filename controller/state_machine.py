@@ -133,6 +133,7 @@ class SignalStateMachine:
             west=colors[Lane.WEST],
             active_lanes=list(self.active_lanes),
             active_lane=self.active_lane,
+            target_lanes=list(self.target_lanes) if self.target_lanes else None,
             phase=self.phase,
             remaining_seconds=remaining,
         )

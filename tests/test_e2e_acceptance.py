@@ -89,17 +89,17 @@ def test_yolo_to_decision_e2e(tmp_path):
     decision = engine.decide(state_dict)
     
     # 5. Verify Decision
-    assert decision.active_lane == "east", f"Expected EAST to be chosen, got {decision.active_lane}"
+    assert decision.selected_lane.value == "east", f"Expected EAST to be chosen, got {decision.selected_lane.value}"
     assert decision.duration == 17, f"Expected 17 sec duration, got {decision.duration}"
     
     # Reason Validation
-    assert any("highest occupancy" in r.lower() for r in decision.reason), "Missing Highest occupancy reason"
-    assert any("detected vehicles" in r.lower() for r in decision.reason), "Missing Highest vehicle count reason"
-    assert any("highest priority score" in r.lower() for r in decision.reason), "Missing Highest priority score reason"
+    assert any("tracking unavailable" in r.lower() for r in decision.reasons), "Missing tracking unavailable reason"
+    assert any("total vehicles" in r.lower() for r in decision.reasons), "Missing total vehicles reason"
+    assert any("priority score:" in r.lower() for r in decision.reasons), "Missing priority score reason"
     
     print("Acceptance Test Flow Verified successfully:")
-    print(f"Chosen Lane: {decision.active_lane.upper()}")
+    print(f"Chosen Lane: {decision.selected_lane.value.upper()}")
     print(f"Duration: {decision.duration} sec")
     print("Reasons:")
-    for r in decision.reason:
+    for r in decision.reasons:
         print(f"  - {r}")

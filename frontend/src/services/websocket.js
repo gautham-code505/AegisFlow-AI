@@ -1,6 +1,6 @@
 // WebSocket Service Abstraction for Real-Time Traffic Updates
 
-const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/traffic';
+const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws/traffic';
 
 export function createTrafficWebSocket({ onMessage, onError, onStatusChange }) {
   let socket = null;

@@ -2,11 +2,31 @@ import React from 'react';
 import { Brain, CheckCircle2, Sparkles, Clock, TrendingUp } from 'lucide-react';
 
 export function DecisionPanel({ signalDecision }) {
-  const activeLane = signalDecision?.selected_lane || 'north';
-  const duration = signalDecision?.duration || 30;
-  const priority = signalDecision?.priority || 'NORMAL';
-  const reasons = signalDecision?.reasons || [];
-  const scoreBreakdown = signalDecision?.score_breakdown || null;
+  if (!signalDecision) {
+    return (
+      <div className="control-card rounded-xl p-4 flex flex-col justify-between h-full">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-700/80">
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-indigo-500/20 text-indigo-400 rounded">
+              <Brain className="w-4 h-4" />
+            </div>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+              AI Decision Engine
+            </h2>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-xs text-slate-500 italic uppercase font-bold tracking-widest">Waiting for Traffic Data</p>
+        </div>
+      </div>
+    );
+  }
+
+  const activeLane = signalDecision.selected_lane;
+  const duration = signalDecision.duration;
+  const priority = signalDecision.priority || 'NORMAL';
+  const reasons = signalDecision.reasons || [];
+  const scoreBreakdown = signalDecision.score_breakdown || null;
 
   const getPriorityBadge = () => {
     const p = String(priority).toUpperCase();
@@ -68,10 +88,17 @@ export function DecisionPanel({ signalDecision }) {
       {/* Score Breakdown Bars */}
       {scoreBreakdown && (
         <div className="bg-slate-950/90 rounded-lg p-3 border border-slate-800 mb-3">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Per-Approach Score Breakdown</span>
-          </span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Per-Approach Score Breakdown</span>
+            </span>
+            {String(priority).toUpperCase() === 'EMERGENCY' && (
+              <span className="px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-700 rounded text-[9px] font-bold uppercase animate-pulse">
+                EMERGENCY OVERRIDE
+              </span>
+            )}
+          </div>
           <div className="space-y-1.5">
             {Object.entries(scoreBreakdown)
               .sort((a, b) => (b[1].total_score || 0) - (a[1].total_score || 0))
@@ -95,6 +122,15 @@ export function DecisionPanel({ signalDecision }) {
                   </div>
                 );
               })}
+          </div>
+          {/* Canonical scoring model from backend */}
+          <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+            <span>Model:</span>
+            <span>
+              {Object.values(scoreBreakdown)[0]?.used_tracking
+                ? 'Tracking Mode (Est. Queue × 0.60 + Est. Wait × 0.40)'
+                : 'Fallback Mode (Demand Ratio × 0.50 + Vehicles × 0.50)'}
+            </span>
           </div>
         </div>
       )}

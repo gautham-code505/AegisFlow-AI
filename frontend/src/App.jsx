@@ -3,12 +3,12 @@ import { useTrafficState } from './hooks/useTrafficState';
 import { Header } from './components/Header';
 import { ScenarioSelector } from './components/ScenarioSelector';
 import { VideoPanel } from './components/VideoPanel';
-import { IntersectionSignal } from './components/IntersectionSignal';
-import { TrafficStats } from './components/TrafficStats';
+import { IntersectionTwin } from './components/IntersectionTwin';
+import { TrafficIntelligence } from './components/TrafficIntelligence';
 import { DecisionPanel } from './components/DecisionPanel';
 import { SafetyPanel } from './components/SafetyPanel';
 import { EmergencyAlert } from './components/EmergencyAlert';
-import { SystemHealth } from './components/SystemHealth';
+import { SystemHealthBar } from './components/SystemHealthBar';
 import { EventLog } from './components/EventLog';
 import { ManualOverrideModal } from './components/ManualOverrideModal';
 
@@ -21,13 +21,17 @@ export default function App() {
     signalState,
     systemStatus,
     events,
+    measurements,
+    analytics,
     approachDetections,
+    approachStatuses,
     safetyResult,
     activeScenario,
     setScenario,
     isMockMode,
     setIsMockMode,
     wsStatus,
+    isStale,
     applyOverride,
   } = useTrafficState();
 
@@ -58,6 +62,7 @@ export default function App() {
             systemStatus={systemStatus}
             trafficState={trafficState}
             approachDetections={approachDetections}
+            approachStatuses={approachStatuses}
             signalDecision={signalDecision}
           />
         </div>
@@ -65,10 +70,12 @@ export default function App() {
         {/* Section 2: AI Decision + Signal Matrix + Safety */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           <DecisionPanel signalDecision={signalDecision} />
-          <IntersectionSignal
+          <IntersectionTwin
             signalState={signalState}
-            signalDecision={signalDecision}
             trafficState={trafficState}
+            signalDecision={signalDecision}
+            safetyResult={safetyResult}
+            isStale={isStale}
           />
           <SafetyPanel safetyResult={safetyResult} />
         </div>
@@ -76,10 +83,17 @@ export default function App() {
         {/* Section 3: Stats & Health */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-4">
           <div className="xl:col-span-3">
-            <TrafficStats trafficState={trafficState} signalDecision={signalDecision} />
+            <TrafficIntelligence 
+              trafficState={trafficState} 
+              signalDecision={signalDecision} 
+              approachStatuses={approachStatuses}
+              measurements={measurements}
+              analytics={analytics}
+              has_tracking_data={trafficState?.has_tracking_data}
+            />
           </div>
           <div className="xl:col-span-1">
-            <SystemHealth systemStatus={systemStatus} />
+            <SystemHealthBar systemStatus={systemStatus} wsStatus={wsStatus} isStale={isStale} />
           </div>
         </div>
 

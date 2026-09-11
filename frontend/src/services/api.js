@@ -1,6 +1,6 @@
 // API Service Abstraction Layer for AegisFlow AI Backend Integration
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 export async function fetchSystemStatus() {
   try {
@@ -162,6 +162,32 @@ export async function uploadApproachImage(approach, file) {
     return await response.json();
   } catch (error) {
     console.warn(`[AegisFlow API] Approach image upload failed for ${approach}:`, error.message);
+    throw error;
+  }
+}
+
+export async function resetApproach(approach) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/traffic/reset/${approach}`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error(`Reset approach failed: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error(`[AegisFlow API] Reset approach failed for ${approach}:`, error.message);
+    throw error;
+  }
+}
+
+export async function resetTrafficState() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/traffic/reset`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error(`Reset traffic state failed: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('[AegisFlow API] Reset traffic state failed:', error.message);
     throw error;
   }
 }

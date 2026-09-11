@@ -8,7 +8,7 @@ class MockVehicleDetector:
     def __init__(self, *args, **kwargs):
         self.detections = []
         
-    def detect(self, frame):
+    def detect(self, frame, use_tracking=False):
         return self.detections
 
 @pytest.fixture
@@ -162,7 +162,7 @@ def test_vision_adapter_detection_conversion(mock_vision_adapter):
         state = states[0]
         
         assert isinstance(state, TrafficState)
-        assert state.source == "vision"
+        assert state.source == "in.mp4"
         
         # Check NORTH lane (1 car, 1 bus, 1 person)
         north_state = state.lanes[Lane.NORTH]
@@ -244,3 +244,41 @@ def test_vision_adapter_process_image(mock_vision_adapter, tmp_path):
         
         mock_imwrite.assert_called_once()
         assert mock_imwrite.call_args[0][0] == dummy_output_path
+
+def test_vision_adapter_frame_skipping_no_tracking(mock_vision_adapter):
+    mock_vision_adapter.detector = MagicMock()
+    mock_vision_adapter.detector.detect.return_value = []
+    
+    with patch('vision.adapter.VideoProcessor') as mock_vp:
+        instance = mock_vp.return_value
+        instance.fps = 30
+        # 10 frames
+        instance.read_frame.side_effect = [(True, None)] * 10 + [(False, None)]
+        
+        generator = mock_vision_adapter.process_video('in.mp4', 'out.mp4', process_every_n_frames=5, use_tracking=False)
+        states = list(generator)
+        
+        assert len(states) == 2
+        assert mock_vision_adapter.detector.detect.call_count == 2
+        # Frame 5 and 10
+        assert states[0].frame_id == 5
+        assert states[1].frame_id == 10
+
+def test_vision_adapter_frame_skipping_with_tracking(mock_vision_adapter):
+    mock_vision_adapter.detector = MagicMock()
+    mock_vision_adapter.detector.detect.return_value = []
+    
+    with patch('vision.adapter.VideoProcessor') as mock_vp:
+        instance = mock_vp.return_value
+        instance.fps = 30
+        # 10 frames
+        instance.read_frame.side_effect = [(True, None)] * 10 + [(False, None)]
+        
+        generator = mock_vision_adapter.process_video('in.mp4', 'out.mp4', process_every_n_frames=5, use_tracking=True)
+        states = list(generator)
+        
+        assert len(states) == 10
+        assert mock_vision_adapter.detector.detect.call_count == 10
+        # Frame 1 to 10
+        for i, state in enumerate(states):
+            assert state.frame_id == i + 1

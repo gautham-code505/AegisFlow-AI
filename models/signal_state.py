@@ -19,6 +19,7 @@ class SignalState(BaseModel):
     west: SignalColor = Field(default=SignalColor.RED, description="West signal light status")
     active_lanes: List[Lane] = Field(default_factory=list, description="List of currently active approach lanes")
     active_lane: Optional[Lane] = Field(default=None, description="Primary active approach lane for backward compatibility")
+    target_lanes: Optional[List[Lane]] = Field(default=None, description="Next target approaches during phase transitions")
     phase: SignalPhase = Field(default=SignalPhase.ALL_RED, description="Current phase (GREEN, YELLOW, ALL_RED)")
     remaining_seconds: int = Field(default=0, ge=0, description="Remaining seconds in active phase")
 

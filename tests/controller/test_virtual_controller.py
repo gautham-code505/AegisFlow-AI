@@ -145,3 +145,58 @@ def test_dynamic_catchup_transitions():
     assert state.phase == SignalPhase.GREEN
     assert state.east == SignalColor.GREEN
     assert state.remaining_seconds == 20 # 25 - 5 elapsed in GREEN phase
+
+
+def test_execute_decision_rejects_conflicting_lanes_without_mutation():
+    """Verify executing conflicting target lanes rejects safely without mutating state."""
+    vc = VirtualSignalController()
+    start = 100.0
+    
+    # 1. Start valid NS GREEN
+    state1 = vc.execute_decision(target_lane=[Lane.NORTH, Lane.SOUTH], duration=20, current_time=start)
+    assert set(state1.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    assert state1.phase == SignalPhase.GREEN
+    
+    # 2. Attempt invalid transition [NORTH, EAST]
+    state2 = vc.execute_decision(target_lane=[Lane.NORTH, Lane.EAST], duration=25, current_time=start + 5.0)
+    
+    # 3. State should be un-mutated (still NS GREEN)
+    assert set(state2.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    assert state2.phase == SignalPhase.GREEN
+    assert state2.remaining_seconds == 15
+
+
+def test_emergency_maintains_clearance_transitions():
+    """Verify emergency requests still follow safe clearance intervals."""
+    vc = VirtualSignalController()
+    start = 100.0
+    
+    # Start NS GREEN
+    vc.execute_decision(target_lane=[Lane.NORTH, Lane.SOUTH], duration=20, current_time=start)
+    
+    # Emergency request for WEST
+    s_yellow = vc.execute_decision(target_lane=[Lane.WEST], duration=20, current_time=start + 5.0)
+    
+    # Must immediately transition to YELLOW for current active
+    assert set(s_yellow.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    assert s_yellow.phase == SignalPhase.YELLOW
+    
+    # Then ALL_RED
+    s_red = vc.advance_time(start + 8.0)
+    assert s_red.phase == SignalPhase.ALL_RED
+    
+    # Then target GREEN
+    s_green = vc.advance_time(start + 10.0)
+    assert set(s_green.active_lanes) == {Lane.WEST}
+    assert s_green.phase == SignalPhase.GREEN
+
+
+def test_manual_control_single_lane_safe():
+    """Verify single-lane manual requests are safe and accepted."""
+    vc = VirtualSignalController()
+    start = 100.0
+    
+    state = vc.execute_decision(target_lane=[Lane.EAST], duration=20, current_time=start)
+    assert ConflictMatrix.is_safe_signal_state(state) is True
+    assert set(state.active_lanes) == {Lane.EAST}
+    assert state.phase == SignalPhase.GREEN

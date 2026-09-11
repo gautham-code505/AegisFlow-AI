@@ -13,11 +13,17 @@ from backend.orchestrator import Orchestrator
 
 def test_orchestrator_process_traffic_state():
     """Verify orchestrator updates state store and returns canonical SignalDecision."""
+    class CapturingWebSocketManager(WebSocketManager):
+        async def broadcast_snapshot(self, **kwargs):
+            self.payload = kwargs
+
     async def _run_test():
         store = StateStore()
         adapter = DecisionEngineAdapter()
-        ws = WebSocketManager()
+        ws = CapturingWebSocketManager()
         orchestrator = Orchestrator(store, adapter, ws)
+
+        store.set_approach_status("north", "ACTIVE")
 
         state = TrafficState(
             timestamp=time.time(),
@@ -35,5 +41,6 @@ def test_orchestrator_process_traffic_state():
         assert store.get_traffic_state() == state
         assert store.get_decision() == decision
         assert len(store.get_events()) >= 1
+        assert ws.payload["approach_statuses"] == {"north": "ACTIVE"}
 
     asyncio.run(_run_test())

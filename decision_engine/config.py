@@ -12,16 +12,17 @@ class DecisionEngineConfig:
     STARVATION_THRESHOLD: float = 60.0  # seconds
     MAX_CONSECUTIVE_SKIPS: int = 5
 
-    # Scoring Weights (Must sum to 1.0 or scale appropriately)
-    OCCUPANCY_WEIGHT: float = 0.4
-    VEHICLE_WEIGHT: float = 0.3
-    WAITING_WEIGHT: float = 0.1
-    PEDESTRIAN_WEIGHT: float = 0.1
-    STARVATION_WEIGHT: float = 0.1
+    # Scoring Weights (Normalized to 1.0)
+    TRACKING_QUEUE_WEIGHT: float = 0.60
+    TRACKING_DELAY_WEIGHT: float = 0.40
+    
+    FALLBACK_OCCUPANCY_WEIGHT: float = 0.50
+    FALLBACK_VEHICLE_WEIGHT: float = 0.50
 
     # Normalization Maxima
     MAX_EXPECTED_VEHICLES: int = 30
-    MAX_EXPECTED_PEDESTRIANS: int = 10
+    MAX_EXPECTED_QUEUED: int = 15
+    MAX_EXPECTED_OBSERVED_WAIT: float = 60.0
 
     # System Configuration
     VALID_LANES: Set[str] = field(default_factory=lambda: {"north", "south", "east", "west"})

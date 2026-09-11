@@ -11,6 +11,7 @@ from typing import Optional, Union, List, Set
 from models import Lane, SignalPhase, SignalState
 from .config import ControllerConfig, DEFAULT_CONTROLLER_CONFIG
 from .state_machine import SignalStateMachine
+from safety.conflicts import ConflictMatrix
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,12 @@ class VirtualSignalController:
             target_lanes = list(target_lane)
 
         target_set = set(target_lanes)
+
+        # Defense-in-depth: check ConflictMatrix
+        conflict_reasons = ConflictMatrix.check_target_lanes(target_lanes)
+        if conflict_reasons:
+            logger.error(f"Controller defense-in-depth REJECTED conflicting target lanes: {conflict_reasons}")
+            return self.state_machine.get_signal_state(now)
 
         # Bound green duration between min and max config bounds
         bounded_duration = max(

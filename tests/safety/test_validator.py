@@ -82,3 +82,42 @@ def test_validator_fallback_stale_traffic_data():
 
     assert res.approved is False
     assert res.status == ValidationStatus.FALLBACK
+
+
+def test_validator_approved_valid_target_lanes():
+    """Verify SafetyValidator approves valid target lanes like [NORTH, SOUTH]."""
+    validator = SafetyValidator()
+    now = 100.0
+    ts = TrafficState(timestamp=99.0)
+    dec = SignalDecision(decision_id="dec", timestamp=99.0, selected_lane=Lane.NORTH, duration=25)
+    
+    res = validator.validate(
+        current_signal_state=None,
+        proposed_decision=dec,
+        traffic_state=ts,
+        current_time=now,
+        target_lanes=[Lane.NORTH, Lane.SOUTH]
+    )
+    
+    assert res.approved is True
+    assert res.status == ValidationStatus.APPROVED
+
+
+def test_validator_rejected_conflicting_target_lanes():
+    """Verify SafetyValidator rejects conflicting target lanes like [NORTH, EAST]."""
+    validator = SafetyValidator()
+    now = 100.0
+    ts = TrafficState(timestamp=99.0)
+    dec = SignalDecision(decision_id="dec", timestamp=99.0, selected_lane=Lane.NORTH, duration=25)
+    
+    res = validator.validate(
+        current_signal_state=None,
+        proposed_decision=dec,
+        traffic_state=ts,
+        current_time=now,
+        target_lanes=[Lane.NORTH, Lane.EAST]
+    )
+    
+    assert res.approved is False
+    assert res.status == ValidationStatus.REJECTED
+    assert any("SAFETY CONFLICT VIOLATION" in reason for reason in res.reasons)
