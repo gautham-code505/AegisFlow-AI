@@ -1,0 +1,75 @@
+{
+  "topology": {
+    "approach_count": 4,
+    "approaches": ["north", "south", "east", "west"]
+  },
+  "camera_resolution": [1280, 720],
+  "camera_source": 2,
+  "camera_verify_resolution": [1280, 720],
+  "roi_anchor": "CENTER",
+  "lanes": {
+    "north": {
+      "capacity": 10,
+      "polygon": [
+        [500, 0], [780, 0], [780, 270], [500, 270]
+      ]
+    },
+    "south": {
+      "capacity": 10,
+      "polygon": [
+        [500, 450], [780, 450], [780, 720], [500, 720]
+      ]
+    },
+    "east": {
+      "capacity": 10,
+      "polygon": [
+        [780, 270], [1280, 270], [1280, 450], [780, 450]
+      ]
+    },
+    "west": {
+      "capacity": 10,
+      "polygon": [
+        [0, 270], [500, 270], [500, 450], [0, 450]
+      ]
+    }
+  },
+  "vehicle_weights": {
+    "motorcycle": 0.5,
+    "bicycle": 0.5,
+    "car": 1.0,
+    "bus": 2.5,
+    "truck": 2.5,
+    "person": 0.2,
+    "ambulance": 3.0
+  },
+  "classes_to_detect": [
+    "motorcycle",
+    "bicycle",
+    "car",
+    "bus",
+    "truck",
+    "person",
+    "ambulance"
+  ],
+  "emergency_classes": [
+    "ambulance"
+  ],
+  "emergency": {
+    "confirmation_frames": 3,
+    "latch_timeout_seconds": 5.0
+  },
+  "tracking": {
+    "timeout_seconds": 2.0,
+    "stationary_pixel_threshold": 5.0,
+    "history_window_frames": 30,
+    "approach_debounce_frames": 3,
+    "stationary_debounce_frames": 3,
+    "moving_debounce_frames": 3
+  },
+  "hardware": {
+    "enabled": true,
+    "port": "COM4",
+    "baud_rate": 115200,
+    "ack_timeout": 2.0
+  }
+}

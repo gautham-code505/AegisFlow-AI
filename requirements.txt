@@ -1,0 +1,18 @@
+# FastAPI requires >=0.141.0 to resolve asyncio.iscoroutinefunction deprecation on Python 3.14.
+fastapi==0.141.1
+starlette==1.7.0
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+pytest==9.1.1
+# Starlette >=1.0 requires httpx2 for TestClient
+httpx==0.28.1
+httpx2==2.13.1
+anyio==4.15.1
+python-multipart==0.0.32
+numpy>=2.0.0
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+pyserial==3.5
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.14.0+cu126
+torchvision==0.29.0+cu126
