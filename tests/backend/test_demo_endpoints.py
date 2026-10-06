@@ -124,3 +124,45 @@ def test_demo_simulated_emergency_invalid_lane():
     response = client.post("/api/v1/demo/emergency/unknown")
     assert response.status_code == 400
     assert "Invalid lane" in response.json()["detail"]
+
+
+def test_simulated_emergency_clear_also_clears_state_store_latch():
+    """Clear must drop the StateStore emergency latch, not only the simulated flag."""
+    from backend.app import state_store
+    from models import TrafficState
+
+    client = TestClient(app)
+    client.post("/api/v1/demo/emergency/clear")
+    state_store.clear_active_emergency()
+
+    # 1. Simulated emergency is latched in the StateStore by the orchestrator path
+    assert client.post("/api/v1/demo/emergency/east").status_code == 200
+    latched = state_store.get_active_emergency()
+    assert latched is not None and latched.detected
+
+    # 2. Clear removes the latch immediately (not after the 5 s timeout)
+    assert client.post("/api/v1/demo/emergency/clear").status_code == 200
+    assert state_store.get_active_emergency() is None
+
+    # 3. A normal TrafficState must not re-inherit the old emergency, either through
+    #    the store accessors used by the decision loop or through the decision endpoint
+    state_store.set_traffic_state(TrafficState(timestamp=time.time()))
+    assert not state_store.get_traffic_state().emergency.detected
+    loop_state, _ = state_store.get_traffic_state_with_version()
+    assert not loop_state.emergency.detected
+
+    payload = {
+        "timestamp": time.time(),
+        "source": "post-clear-normal",
+        "lanes": {
+            "north": {"vehicle_count": 5, "occupancy": 0.3},
+            "south": {"vehicle_count": 2, "occupancy": 0.1},
+            "east": {"vehicle_count": 1, "occupancy": 0.1},
+            "west": {"vehicle_count": 1, "occupancy": 0.1},
+        },
+        "emergency": {"detected": False, "lane": None},
+    }
+    response = client.post("/api/v1/demo/traffic", json=payload)
+    assert response.status_code == 200
+    assert response.json()["priority"] != "EMERGENCY"
+    assert state_store.get_active_emergency() is None

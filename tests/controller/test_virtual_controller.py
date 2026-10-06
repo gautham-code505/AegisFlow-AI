@@ -268,3 +268,97 @@ def test_fallback_not_affected_by_continuous_green_fix():
     
     state2 = fc.get_fallback_signal_state(start + fc.config.FALLBACK_GREEN_SECONDS)
     assert state2.phase == SignalPhase.YELLOW
+
+
+def test_repeated_decision_preserves_clearance_timing():
+    """Verify repeated 1 Hz execute_decision calls preserve YELLOW and ALL_RED durations."""
+    vc = VirtualSignalController()
+    start = 100.0
+    
+    # 1. Start NS GREEN
+    vc.execute_decision(target_lane=[Lane.NORTH, Lane.SOUTH], duration=20, current_time=start)
+    assert vc.state_machine.phase == SignalPhase.GREEN
+    assert set(vc.state_machine.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    
+    # 2. At t=110, new target EW. This should trigger YELLOW (duration 3s).
+    t = start + 10.0
+    s_yellow1 = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=t)
+    assert s_yellow1.phase == SignalPhase.YELLOW
+    assert set(s_yellow1.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    
+    # 3. Repeated call at t=111 during YELLOW (1s elapsed, 2s left)
+    t += 1.0
+    s_yellow2 = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=t)
+    assert s_yellow2.phase == SignalPhase.YELLOW
+    assert set(s_yellow2.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    assert ConflictMatrix.is_safe_signal_state(s_yellow2) is True
+    
+    # 4. Repeated call at t=112 during YELLOW (2s elapsed, 1s left)
+    t += 1.0
+    s_yellow3 = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=t)
+    assert s_yellow3.phase == SignalPhase.YELLOW
+    assert set(s_yellow3.active_lanes) == {Lane.NORTH, Lane.SOUTH}
+    
+    # 5. Repeated call at t=113. YELLOW (3s) completes, should transition to ALL_RED (duration 2s)
+    t += 1.0
+    s_red1 = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=t)
+    assert s_red1.phase == SignalPhase.ALL_RED
+    assert len(s_red1.active_lanes) == 0
+    assert ConflictMatrix.is_safe_signal_state(s_red1) is True
+    
+    # 6. Repeated call at t=114 during ALL_RED (1s elapsed)
+    t += 1.0
+    s_red2 = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=t)
+    assert s_red2.phase == SignalPhase.ALL_RED
+    assert len(s_red2.active_lanes) == 0
+    
+    # 7. Repeated call at t=115. ALL_RED (2s) completes, should transition to GREEN
+    t += 1.0
+    s_green = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=t)
+    assert s_green.phase == SignalPhase.GREEN
+    assert set(s_green.active_lanes) == {Lane.EAST, Lane.WEST}
+    assert ConflictMatrix.is_safe_signal_state(s_green) is True
+
+
+def test_long_idle_all_red_fresh_green_start():
+    """Verify after a long idle ALL_RED, a new GREEN starts fresh at the current time.
+    Specifically tests the is_phase_complete() branch of ALL_RED recovery.
+    """
+    vc = VirtualSignalController()
+    start = 100.0
+    
+    # 1. Start from a real GREEN phase
+    vc.execute_decision(target_lane=[Lane.NORTH, Lane.SOUTH], duration=20, current_time=start)
+    assert vc.state_machine.phase == SignalPhase.GREEN
+    assert vc.state_machine.phase_duration == 20
+    
+    # 2. Force ALL_RED through the real controller path
+    t = start + 10.0
+    vc.force_all_red(t)
+    assert vc.state_machine.phase == SignalPhase.YELLOW
+    assert vc.state_machine.phase_duration == 3
+    
+    # 3. Advance through real YELLOW and ALL_RED timing
+    t += 3.0
+    vc.get_current_signal_state(t)
+    assert vc.state_machine.phase == SignalPhase.ALL_RED
+    assert vc.state_machine.phase_duration == 2
+    
+    t += 2.0
+    vc.get_current_signal_state(t)
+    # 4. Confirm ALL_RED is actually complete and idling
+    assert vc.state_machine.phase == SignalPhase.ALL_RED
+    assert vc.state_machine.phase_duration == 2
+    assert vc.state_machine.is_phase_complete(t) is True
+    
+    # 5. Simulate a long idle period
+    long_idle = t + 300.0
+    
+    # 6. Submit a new decision
+    state = vc.execute_decision(target_lane=[Lane.EAST, Lane.WEST], duration=20, current_time=long_idle)
+    
+    # 7. Assert it transitions immediately to GREEN and is not backdated
+    assert state.phase == SignalPhase.GREEN
+    assert set(state.active_lanes) == {Lane.EAST, Lane.WEST}
+    assert vc.state_machine.phase_start_time == long_idle
+    assert state.remaining_seconds == 20

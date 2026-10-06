@@ -136,27 +136,27 @@ class VirtualSignalController:
                 target_duration=bounded_duration,
             )
         elif current_phase == SignalPhase.YELLOW:
-            # Already in YELLOW phase, move to ALL_RED clearance
-            logger.info(f"Transitioning from YELLOW clearance to ALL_RED clearance for target [{target_names}]")
-            self.state_machine.transition_to(
-                new_phase=SignalPhase.ALL_RED,
-                active_lanes=[],
-                duration=self.config.ALL_RED_SECONDS,
-                timestamp=now,
-                target_lanes=target_lanes,
-                target_duration=bounded_duration,
-            )
+            # Already in YELLOW phase, update target but DO NOT interrupt YELLOW clearance
+            logger.info(f"Currently in YELLOW clearance. Updating target to [{target_names}] (duration {bounded_duration}s)")
+            self.state_machine.target_lanes = target_lanes
+            self.state_machine.target_duration = bounded_duration
         else:
-            # In ALL_RED phase or starting up: transition directly to target GREEN
-            logger.info(f"Transitioning from ALL_RED to GREEN phase on approach group [{target_names}] for {bounded_duration}s")
-            self.state_machine.transition_to(
-                new_phase=SignalPhase.GREEN,
-                active_lanes=target_lanes,
-                duration=bounded_duration,
-                timestamp=now,
-            )
+            if self.state_machine.phase_duration == 0 or self.state_machine.is_phase_complete(now):
+                # Starting up or ALL_RED completed: transition directly to target GREEN
+                logger.info(f"Transitioning from ALL_RED to GREEN phase on approach group [{target_names}] for {bounded_duration}s")
+                self.state_machine.transition_to(
+                    new_phase=SignalPhase.GREEN,
+                    active_lanes=target_lanes,
+                    duration=bounded_duration,
+                    timestamp=now,
+                )
+            else:
+                # In ALL_RED phase: update target but DO NOT interrupt ALL_RED clearance
+                logger.info(f"Currently in ALL_RED clearance. Updating target to [{target_names}] (duration {bounded_duration}s)")
+                self.state_machine.target_lanes = target_lanes
+                self.state_machine.target_duration = bounded_duration
 
-        return self.state_machine.get_signal_state(now)
+        return self.get_current_signal_state(now)
 
     def advance_time(self, current_time: float) -> SignalState:
         """

@@ -189,7 +189,8 @@ def create_endpoints_router(
         if sim_emg is not None:
             lane = sim_emg.lane.value.upper()
             set_simulated_emergency(None)
-            
+            state_store.clear_active_emergency()
+
             now = time.time()
             clear_event = Event(
                 event_id=f"ev-emg-clr-{uuid.uuid4().hex[:8]}",
