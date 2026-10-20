@@ -306,8 +306,12 @@ def test_wp16_consecutive_fresh_traffic_accepted(mock_hardware_transport):
         
         snap_stale = client.get("/api/v1/snapshot").json()
         assert snap_stale["safetyResult"]["status"] == "FALLBACK"
-        assert snap_stale["systemStatus"]["mode"] == "FALLBACK"
         assert any("Stale TrafficState detected" in r for r in snap_stale["safetyResult"]["reasons"])
+        # Stale perception must clear towards ALL_RED, never start the round-robin fallback
+        assert snap_stale["systemStatus"]["mode"] != "FALLBACK"
+        stale_signal = snap_stale["signalState"]
+        assert stale_signal["phase"] in ("YELLOW", "ALL_RED")
+        assert "GREEN" not in (stale_signal["north"], stale_signal["south"], stale_signal["east"], stale_signal["west"])
 
 
 def test_wp16_camera_smoke_e2e(tmp_path):

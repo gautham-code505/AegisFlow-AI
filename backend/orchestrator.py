@@ -11,6 +11,7 @@ import logging
 from typing import Optional, List
 from models import TrafficState, SignalDecision, SignalState, Event, EventSeverity, EventCategory, SystemStatus, Status, SystemMode, Lane, Priority, SignalPhase, ServiceMeasurement, SourceType, VisionStatus
 from safety import SafetyValidator, FallbackController, ValidationStatus, get_compatible_phase_for_lane
+from safety.rules import check_traffic_data_freshness
 from controller import VirtualSignalController
 from .state_store import StateStore
 from .decision_adapter import DecisionEngineAdapter
@@ -208,12 +209,17 @@ class Orchestrator:
         status = self.state_store.get_system_status()
         traffic_state = self.state_store.get_traffic_state()
         
-        # Determine if perception is unavailable or stale
-        is_input_unavailable = status.camera == SourceType.NO_INPUT or status.vision != VisionStatus.PROCESSING
+        # Determine if perception is unavailable or stale. A running camera that has not
+        # produced any TrafficState yet is treated as unavailable, not as fresh.
+        is_input_unavailable = (
+            status.camera == SourceType.NO_INPUT
+            or status.vision != VisionStatus.PROCESSING
+            or traffic_state is None
+        )
         is_stale = False
-        if not is_input_unavailable and traffic_state:
-            # 3.0 second staleness timeout
-            if now - traffic_state.timestamp > 3.0:
+        if not is_input_unavailable:
+            # Same staleness threshold as the SafetyValidator (single source of truth)
+            if now - traffic_state.timestamp > self.safety_validator.config.STALE_DATA_SECONDS:
                 is_stale = True
 
         if is_input_unavailable or is_stale:
@@ -410,6 +416,16 @@ class Orchestrator:
                 current_time=now,
                 preempt_target=decision.priority in (Priority.EMERGENCY, Priority.MANUAL),
             )
+            self._update_signal_state(signal_state, now)
+
+        elif val_result.status == ValidationStatus.FALLBACK and check_traffic_data_freshness(
+            state, now, self.safety_validator.config
+        ):
+            # Stale or missing perception: clear towards ALL_RED (GREEN -> YELLOW -> ALL_RED).
+            # Never start the round-robin fallback on stale data: that would turn a GREEN on
+            # without current perception.
+            logger.warning("Stale TrafficState received. Forcing ALL_RED clearance.")
+            signal_state = self.virtual_controller.force_all_red(now)
             self._update_signal_state(signal_state, now)
 
         elif val_result.status == ValidationStatus.FALLBACK:

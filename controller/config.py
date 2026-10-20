@@ -26,7 +26,7 @@ class ControllerConfig(BaseModel):
     )
 
     # Safety Monitoring Thresholds (Seconds)
-    STALE_DATA_SECONDS: float = Field(default=5.0, ge=1.0, description="Max allowed age for TrafficState before triggering fallback")
+    STALE_DATA_SECONDS: float = Field(default=3.0, ge=1.0, description="Max allowed age for TrafficState before it is treated as stale (forces ALL_RED)")
     DECISION_TIMEOUT_SECONDS: float = Field(default=5.0, ge=1.0, description="Max allowed age for SignalDecision before rejection")
 
 
