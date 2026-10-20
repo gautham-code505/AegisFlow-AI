@@ -77,3 +77,27 @@ void execute_safe_state() {
     uint16_t safe_bits = map_logical_to_physical(all_red);
     execute_physical_state(safe_bits);
 }
+
+bool is_conflict_free(const LogicalState& state) {
+    bool ns_active = state.north != SignalColor::RED || state.south != SignalColor::RED;
+    bool ew_active = state.east != SignalColor::RED || state.west != SignalColor::RED;
+    return !(ns_active && ew_active);
+}
+
+bool has_green(const LogicalState& state) {
+    return state.north == SignalColor::GREEN || state.south == SignalColor::GREEN ||
+           state.east == SignalColor::GREEN || state.west == SignalColor::GREEN;
+}
+
+static SignalColor green_to_yellow(SignalColor color) {
+    return color == SignalColor::GREEN ? SignalColor::YELLOW : color;
+}
+
+LogicalState to_clearance_yellow(const LogicalState& state) {
+    return {
+        green_to_yellow(state.north),
+        green_to_yellow(state.south),
+        green_to_yellow(state.east),
+        green_to_yellow(state.west),
+    };
+}

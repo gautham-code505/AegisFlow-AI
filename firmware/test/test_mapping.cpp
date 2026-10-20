@@ -2,6 +2,8 @@
 #include <iostream>
 #include <string>
 
+int failures = 0;
+
 // Test helper
 void test_mapping(std::string name, LogicalState state, uint16_t expected) {
     uint16_t actual = map_logical_to_physical(state);
@@ -9,7 +11,44 @@ void test_mapping(std::string name, LogicalState state, uint16_t expected) {
         std::cout << "[PASS] " << name << "\n";
     } else {
         std::cout << "[FAIL] " << name << " - Expected: " << expected << " Got: " << actual << "\n";
+        failures++;
     }
+}
+
+void check(std::string name, bool condition) {
+    if (condition) {
+        std::cout << "[PASS] " << name << "\n";
+    } else {
+        std::cout << "[FAIL] " << name << "\n";
+        failures++;
+    }
+}
+
+const SignalColor R = SignalColor::RED;
+const SignalColor Y = SignalColor::YELLOW;
+const SignalColor G = SignalColor::GREEN;
+
+// LogicalState field order is {north, south, east, west}
+void test_conflicts() {
+    std::cout << "Running Conflict Check Tests...\n";
+    check("ALL_RED is conflict-free", is_conflict_free({R, R, R, R}));
+    check("NORTH+SOUTH GREEN is conflict-free", is_conflict_free({G, G, R, R}));
+    check("EAST+WEST GREEN is conflict-free", is_conflict_free({R, R, G, G}));
+    check("NORTH+SOUTH YELLOW is conflict-free", is_conflict_free({Y, Y, R, R}));
+    check("NORTH GREEN + EAST GREEN is rejected", !is_conflict_free({G, R, G, R}));
+    check("SOUTH GREEN + WEST GREEN is rejected", !is_conflict_free({R, G, R, G}));
+    check("NORTH YELLOW + EAST GREEN is rejected", !is_conflict_free({Y, R, G, R}));
+    check("ALL GREEN is rejected", !is_conflict_free({G, G, G, G}));
+}
+
+void test_clearance() {
+    std::cout << "Running Watchdog Clearance Tests...\n";
+    LogicalState y = to_clearance_yellow({G, G, R, R});
+    check("GREEN becomes YELLOW", y.north == Y && y.south == Y && y.east == R && y.west == R);
+    LogicalState same = to_clearance_yellow({R, R, Y, R});
+    check("non-GREEN unchanged", same.north == R && same.south == R && same.east == Y && same.west == R);
+    check("has_green detects GREEN", has_green({R, R, R, G}));
+    check("has_green false for YELLOW/RED", !has_green({Y, R, R, R}));
 }
 
 int main() {
@@ -69,6 +108,9 @@ int main() {
         {SignalColor::RED, SignalColor::RED, SignalColor::RED, SignalColor::YELLOW}, 
         0x0449);
         
-    std::cout << "Done.\n";
-    return 0;
+    test_conflicts();
+    test_clearance();
+
+    std::cout << "Done. Failures: " << failures << "\n";
+    return failures == 0 ? 0 : 1;
 }
