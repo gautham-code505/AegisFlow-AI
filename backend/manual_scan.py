@@ -35,6 +35,7 @@ from decision_engine import DecisionEngine
 logger = logging.getLogger(__name__)
 
 SCAN_ORDER: List[Lane] = [Lane.NORTH, Lane.EAST, Lane.SOUTH, Lane.WEST]
+NO_VEHICLES_REASON = "No vehicles counted in any direction. Check the detections or rescan"
 
 
 @dataclass
@@ -266,8 +267,8 @@ class ManualScanManager:
             cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
             label = f"{det['class']} {det['confidence']:.2f}"
             cv2.putText(out, label, (x1, max(12, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
-        counted = sum(1 for d in detections if d.get("counted"))
-        cv2.putText(out, f"Counted: {counted}", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+        vehicles, _, _ = self.vision_adapter._classify_detections([d["class"] for d in detections if d.get("counted")])
+        cv2.putText(out, f"Vehicles in box: {vehicles}", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
         return out
 
     @staticmethod
@@ -369,14 +370,14 @@ class ManualScanManager:
         oldest_age = round(now - min(o.captured_at for o in confirmed), 1) if confirmed else None
         span = round(max(o.captured_at for o in confirmed) - min(o.captured_at for o in confirmed), 1) if confirmed else None
 
-        if missing:
+        if session.applied_at is not None:
+            validity, reason = "APPLIED", "This scan was already applied to the signals. Start a new scan"
+        elif missing:
             validity, reason = "INCOMPLETE", f"Still to confirm: {', '.join(m.upper() for m in missing)}"
         elif oldest_age > self.settings.max_age_seconds:
             validity, reason = "EXPIRED", (
                 f"Oldest capture is {oldest_age:.0f}s old (limit {self.settings.max_age_seconds:.0f}s). Rescan required"
             )
-        elif session.applied_at is not None:
-            validity, reason = "APPLIED", "This scan was already applied to the signals. Start a new scan"
         else:
             validity, reason = "VALID", "All four approaches confirmed and recent"
 
@@ -405,6 +406,12 @@ class ManualScanManager:
             lanes=lanes,
         )
 
+    @staticmethod
+    def _no_vehicles(session: _ScanSession) -> bool:
+        # A green for an empty junction serves no one, and on the tabletop an all-zero
+        # scan usually means the detector missed the vehicles.
+        return sum(o.vehicle_count for o in session.observations.values()) == 0
+
     def _propose(self, session: _ScanSession):
         # Fresh engine every time: the live engine keeps waiting/starvation state
         # that a preview must not disturb.
@@ -429,6 +436,8 @@ class ManualScanManager:
             next_lane = next((l.value for l in SCAN_ORDER if l.value in evaluation["missing"]), None)
             if evaluation["validity"] != "VALID":
                 actuation_ok, blocked_reason = False, evaluation["reason"]
+            elif self._no_vehicles(session):
+                actuation_ok, blocked_reason = False, NO_VEHICLES_REASON
             else:
                 actuation_ok, blocked_reason = self.orchestrator.can_start_scan_cycle(now)
             proposal = None
@@ -464,6 +473,8 @@ class ManualScanManager:
             evaluation = self._evaluate(session, now)
             if evaluation["validity"] != "VALID":
                 raise ScanError(evaluation["reason"])
+            if self._no_vehicles(session):
+                raise ScanError(NO_VEHICLES_REASON)
             decision = self._propose(session)
             oldest_age = evaluation["oldest_age_seconds"]
 

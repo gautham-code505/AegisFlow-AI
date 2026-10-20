@@ -328,3 +328,16 @@ def test_scan_api_rejects_actions_without_a_running_scan():
         assert client.post("/api/v1/scan/apply").status_code == 409
         assert client.post("/api/v1/scan/upwards/capture").status_code == 400
         assert client.get("/api/v1/scan/north/image").status_code == 404
+
+
+@pytest.mark.anyio
+async def test_all_zero_scan_is_not_applied(rig):
+    await start_and_wait(rig)
+    await scan_all(rig, {Lane.NORTH: 0, Lane.EAST: 0, Lane.SOUTH: 0, Lane.WEST: 0})
+    scan = rig.manager.status()["scan"]
+    assert scan["validity"] == "VALID"
+    assert scan["actuation_permitted"] is False
+    assert "No vehicles" in scan["actuation_blocked_reason"]
+    with pytest.raises(ScanError):
+        await rig.manager.apply()
+    await rig.manager.stop()

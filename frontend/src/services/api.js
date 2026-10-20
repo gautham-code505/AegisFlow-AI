@@ -198,3 +198,34 @@ export async function resetTrafficState() {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Four-direction manual scan
+// ---------------------------------------------------------------------------
+
+export const scanImageUrl = (approach, version) =>
+  `${API_BASE_URL}/api/v1/scan/${approach}/image?annotated=true&v=${version || ''}`;
+
+export const videoStreamUrl = () => `${API_BASE_URL}/api/v1/video/stream`;
+
+async function scanRequest(path, method = 'POST', body) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/scan${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || `Scan request failed: ${response.status}`);
+  }
+  return data;
+}
+
+export const fetchScanStatus = () => scanRequest('', 'GET');
+export const startScan = (source) => scanRequest('/start', 'POST', { source: source ?? null });
+export const stopScan = () => scanRequest('/stop');
+export const newScan = () => scanRequest('/new');
+export const captureApproach = (approach) => scanRequest(`/${approach}/capture`);
+export const confirmApproach = (approach) => scanRequest(`/${approach}/confirm`);
+export const retakeApproach = (approach) => scanRequest(`/${approach}/retake`);
+export const applyScan = () => scanRequest('/apply');

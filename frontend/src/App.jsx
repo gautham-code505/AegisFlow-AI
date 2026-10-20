@@ -13,9 +13,11 @@ import { SystemHealthBar } from './components/SystemHealthBar';
 import { EventLog } from './components/EventLog';
 import { ManualOverrideModal } from './components/ManualOverrideModal';
 import { MovementGuide } from './components/MovementGuide';
+import { ScanModePanel } from './components/ScanModePanel';
 
 export default function App() {
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [cameraMode, setCameraMode] = useState('live'); // 'live' or 'scan'
 
   const {
     trafficState,
@@ -58,10 +60,35 @@ export default function App() {
         {/* Emergency Alert Banner */}
         <EmergencyAlert emergency={trafficState?.emergency} />
 
-        {/* LIVE PERCEPTION PANEL */}
+        {/* LIVE PERCEPTION: continuous camera, or four-direction handheld scan */}
         {!isMockMode && (
           <div className="mb-4">
-            <LivePerceptionPanel systemStatus={systemStatus} trafficState={trafficState} />
+            <div className="flex gap-1 mb-2" role="tablist" aria-label="Camera mode">
+              {[
+                { key: 'live', label: 'Live Camera' },
+                { key: 'scan', label: 'Four-Direction Scan' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={cameraMode === tab.key}
+                  onClick={() => setCameraMode(tab.key)}
+                  className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border transition-colors ${
+                    cameraMode === tab.key
+                      ? 'bg-indigo-600 border-indigo-500 text-white'
+                      : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {cameraMode === 'scan' ? (
+              <ScanModePanel />
+            ) : (
+              <LivePerceptionPanel systemStatus={systemStatus} trafficState={trafficState} />
+            )}
           </div>
         )}
 
