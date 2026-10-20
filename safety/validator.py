@@ -90,7 +90,7 @@ class SafetyValidator:
 
         # 7. Check target lanes conflict
         if target_lanes is not None:
-            conflict_reasons = ConflictMatrix.check_target_lanes(target_lanes)
+            conflict_reasons = ConflictMatrix.check_target_lanes(target_lanes, self.config)
             if conflict_reasons:
                 rejection_reasons.extend(conflict_reasons)
 

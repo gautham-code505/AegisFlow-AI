@@ -37,6 +37,7 @@ from decision_engine.engine import DecisionEngine
 from decision_engine.config import DEFAULT_CONFIG
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_controller_state_determined_from_wall_clock_independent_of_websocket_clients():
     """
     INVARIANT:
@@ -49,6 +50,7 @@ def test_controller_state_determined_from_wall_clock_independent_of_websocket_cl
         MAX_GREEN_SECONDS=60,
         YELLOW_SECONDS=3,
         ALL_RED_SECONDS=2,
+        SINGLE_APPROACH_PHASING=False,
     )
     vc = VirtualSignalController(config=config)
     t0 = 1000.0
@@ -94,6 +96,7 @@ def test_controller_state_determined_from_wall_clock_independent_of_websocket_cl
     assert s_target_green.target_lanes is None  # Transition complete
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_signal_state_authoritative_source_independent_of_signal_decision():
     """
     INVARIANT:
@@ -101,7 +104,7 @@ def test_signal_state_authoritative_source_independent_of_signal_decision():
     An AI decision recommendation does not alter the signal state until safety
     approves and the controller executes it.
     """
-    config = ControllerConfig(MIN_GREEN_SECONDS=10, YELLOW_SECONDS=3, ALL_RED_SECONDS=2)
+    config = ControllerConfig(MIN_GREEN_SECONDS=10, YELLOW_SECONDS=3, ALL_RED_SECONDS=2, SINGLE_APPROACH_PHASING=False)
     vc = VirtualSignalController(config=config)
     now = 100.0
 
@@ -250,6 +253,7 @@ def test_signal_colors_and_phases_exhaustive():
 
 
 @pytest.mark.anyio
+@pytest.mark.usefixtures("paired_phasing")
 async def test_emergency_preemption_actual_controller_sequence():
     """
     Verify the actual repository emergency preemption sequence:

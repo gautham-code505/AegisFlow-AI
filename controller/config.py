@@ -18,6 +18,13 @@ class ControllerConfig(BaseModel):
     ALL_RED_SECONDS: int = Field(default=2, ge=1, description="All-red clearance phase duration")
     FALLBACK_GREEN_SECONDS: int = Field(default=15, ge=5, description="Green duration during safe fallback cycle")
 
+    # Phasing Policy
+    SINGLE_APPROACH_PHASING: bool = Field(
+        default=True,
+        description="Only one approach may be GREEN at a time (protected phase per approach). "
+                    "False re-enables paired NORTH+SOUTH / EAST+WEST corridor phases.",
+    )
+
     # Safety Monitoring Thresholds (Seconds)
     STALE_DATA_SECONDS: float = Field(default=5.0, ge=1.0, description="Max allowed age for TrafficState before triggering fallback")
     DECISION_TIMEOUT_SECONDS: float = Field(default=5.0, ge=1.0, description="Max allowed age for SignalDecision before rejection")

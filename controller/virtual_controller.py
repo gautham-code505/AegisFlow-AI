@@ -68,6 +68,7 @@ class VirtualSignalController:
         target_lane: Union[Lane, List[Lane], Set[Lane]],
         duration: int,
         current_time: Optional[float] = None,
+        preempt_target: bool = False,
     ) -> SignalState:
         """
         Executes an approved signal decision for a target approach or compatible approach group.
@@ -75,6 +76,11 @@ class VirtualSignalController:
         - If current is GREEN on different lanes: GREEN -> YELLOW -> ALL_RED -> target GREEN
         - If current is GREEN on same lanes: extends GREEN phase up to MAX_GREEN_SECONDS
         - If current is ALL_RED: ALL_RED -> target GREEN
+
+        Once a clearance toward a target has started, that target is committed and is
+        served next; later decisions cannot redirect it unless preempt_target is set
+        (emergency / manual override). Otherwise the 1 Hz decision stream can keep
+        overwriting the target and a waiting approach is never served.
         """
         now = current_time if current_time is not None else time.time()
         current_phase = self.state_machine.phase
@@ -89,7 +95,7 @@ class VirtualSignalController:
         target_set = set(target_lanes)
 
         # Defense-in-depth: check ConflictMatrix
-        conflict_reasons = ConflictMatrix.check_target_lanes(target_lanes)
+        conflict_reasons = ConflictMatrix.check_target_lanes(target_lanes, self.config)
         if conflict_reasons:
             logger.error(f"Controller defense-in-depth REJECTED conflicting target lanes: {conflict_reasons}")
             return self.state_machine.get_signal_state(now)
@@ -136,12 +142,16 @@ class VirtualSignalController:
                 target_duration=bounded_duration,
             )
         elif current_phase == SignalPhase.YELLOW:
-            # Already in YELLOW phase, update target but DO NOT interrupt YELLOW clearance
-            logger.info(f"Currently in YELLOW clearance. Updating target to [{target_names}] (duration {bounded_duration}s)")
-            self.state_machine.target_lanes = target_lanes
-            self.state_machine.target_duration = bounded_duration
+            # Already in YELLOW phase: DO NOT interrupt YELLOW clearance
+            if self._may_retarget(target_set, preempt_target):
+                logger.info(f"Currently in YELLOW clearance. Updating target to [{target_names}] (duration {bounded_duration}s)")
+                self.state_machine.target_lanes = target_lanes
+                self.state_machine.target_duration = bounded_duration
         else:
             if self.state_machine.phase_duration == 0 or self.state_machine.is_phase_complete(now):
+                if not self._may_retarget(target_set, preempt_target):
+                    # ALL_RED completed with a committed target: serve that target first
+                    return self.get_current_signal_state(now)
                 # Starting up or ALL_RED completed: transition directly to target GREEN
                 logger.info(f"Transitioning from ALL_RED to GREEN phase on approach group [{target_names}] for {bounded_duration}s")
                 self.state_machine.transition_to(
@@ -151,12 +161,22 @@ class VirtualSignalController:
                     timestamp=now,
                 )
             else:
-                # In ALL_RED phase: update target but DO NOT interrupt ALL_RED clearance
-                logger.info(f"Currently in ALL_RED clearance. Updating target to [{target_names}] (duration {bounded_duration}s)")
-                self.state_machine.target_lanes = target_lanes
-                self.state_machine.target_duration = bounded_duration
+                # In ALL_RED phase: DO NOT interrupt ALL_RED clearance
+                if self._may_retarget(target_set, preempt_target):
+                    logger.info(f"Currently in ALL_RED clearance. Updating target to [{target_names}] (duration {bounded_duration}s)")
+                    self.state_machine.target_lanes = target_lanes
+                    self.state_machine.target_duration = bounded_duration
 
         return self.get_current_signal_state(now)
+
+    def _may_retarget(self, target_set: Set[Lane], preempt_target: bool) -> bool:
+        """True when a decision may set the clearance target (none committed, same target, or preemption)."""
+        committed = self.state_machine.target_lanes
+        if committed is None or preempt_target or set(committed) == target_set:
+            return True
+        committed_names = "+".join([l.value.upper() for l in committed])
+        logger.info(f"Clearance already committed to [{committed_names}]. Keeping committed target.")
+        return False
 
     def advance_time(self, current_time: float) -> SignalState:
         """

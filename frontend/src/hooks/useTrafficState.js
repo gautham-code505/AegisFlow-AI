@@ -127,8 +127,13 @@ export function useTrafficState() {
   useEffect(() => {
     if (isMockMode) return;
 
+    // Ignore callbacks after this effect closes the socket on purpose (e.g. switching to
+    // demo mode); otherwise the close is reported as DISCONNECTED and marks demo data stale.
+    let closedByEffect = false;
+
     const wsClient = createTrafficWebSocket({
       onMessage: (incoming) => {
+        if (closedByEffect) return;
         setLastUpdated(Date.now());
         setIsStale(false);
         
@@ -150,6 +155,7 @@ export function useTrafficState() {
         }
       },
       onStatusChange: (status) => {
+        if (closedByEffect) return;
         setWsStatus(status);
         if (status === 'DISCONNECTED' || status === 'ERROR') {
             setIsStale(true);
@@ -161,6 +167,7 @@ export function useTrafficState() {
     });
 
     return () => {
+      closedByEffect = true;
       wsClient.disconnect();
     };
   }, [isMockMode]);

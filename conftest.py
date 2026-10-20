@@ -17,3 +17,10 @@ import pytest
 def anyio_backend():
     return "asyncio"
 
+
+
+@pytest.fixture
+def paired_phasing(monkeypatch):
+    """Run a test under the legacy paired NORTH+SOUTH / EAST+WEST phasing policy."""
+    from controller.config import DEFAULT_CONTROLLER_CONFIG
+    monkeypatch.setattr(DEFAULT_CONTROLLER_CONFIG, "SINGLE_APPROACH_PHASING", False)

@@ -12,6 +12,7 @@ import { EmergencyAlert } from './components/EmergencyAlert';
 import { SystemHealthBar } from './components/SystemHealthBar';
 import { EventLog } from './components/EventLog';
 import { ManualOverrideModal } from './components/ManualOverrideModal';
+import { MovementGuide } from './components/MovementGuide';
 
 export default function App() {
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
@@ -82,6 +83,11 @@ export default function App() {
           <div className="lg:col-span-1">
             <SafetyPanel safetyResult={safetyResult} />
           </div>
+        </div>
+
+        {/* Permitted movements for the approach that currently has green */}
+        <div className="mb-4">
+          <MovementGuide signalState={signalState} isStale={isStale} />
         </div>
 
         {/* Section 3: Stats & Health */}

@@ -59,6 +59,16 @@ ALLOWED_GREEN_LANE_SETS: Set[frozenset] = {
     frozenset(pg.green_lanes) for pg in SAFE_PHASE_GROUPS
 }
 
+# Permitted combinations under single-approach phasing: one approach or none
+SINGLE_APPROACH_GREEN_LANE_SETS: Set[frozenset] = {
+    frozenset(pg.green_lanes) for pg in SAFE_PHASE_GROUPS if len(pg.green_lanes) <= 1
+}
+
+
+def get_allowed_green_lane_sets(single_approach: bool) -> Set[frozenset]:
+    """Returns the permitted green lane combinations for the active phasing policy."""
+    return SINGLE_APPROACH_GREEN_LANE_SETS if single_approach else ALLOWED_GREEN_LANE_SETS
+
 
 def get_safe_phases() -> List[PhaseGroup]:
     """Returns the list of all explicitly declared safe phase groups."""
@@ -79,8 +89,21 @@ def get_phase_group(name: str) -> Optional[PhaseGroup]:
     return None
 
 
-def get_compatible_phase_for_lane(lane: Lane) -> PhaseGroup:
-    """Maps an individual lane to its primary compatible corridor phase group."""
+SINGLE_APPROACH_PHASES: Dict[Lane, PhaseGroup] = {
+    Lane.NORTH: PHASE_NORTH,
+    Lane.SOUTH: PHASE_SOUTH,
+    Lane.EAST: PHASE_EAST,
+    Lane.WEST: PHASE_WEST,
+}
+
+
+def get_compatible_phase_for_lane(lane: Lane, single_approach: bool = False) -> PhaseGroup:
+    """
+    Maps an individual lane to the phase group it is served in: its own protected
+    single-approach phase, or (paired mode) its NORTH+SOUTH / EAST+WEST corridor.
+    """
+    if single_approach:
+        return SINGLE_APPROACH_PHASES.get(lane, PHASE_ALL_RED)
     if lane in (Lane.NORTH, Lane.SOUTH):
         return PHASE_NS
     elif lane in (Lane.EAST, Lane.WEST):

@@ -188,6 +188,15 @@ class Orchestrator:
                 
                 self._active_measurement = None
 
+    @staticmethod
+    def _is_decision_adopted(decision: SignalDecision, signal_state: Optional[SignalState]) -> bool:
+        """True when the controller is serving, or is committed to serve next, the decided lane."""
+        if signal_state is None:
+            return False
+        if signal_state.phase == SignalPhase.GREEN and decision.selected_lane in signal_state.active_lanes:
+            return True
+        return decision.selected_lane in (signal_state.target_lanes or [])
+
     def get_current_signal_state(self, current_time: Optional[float] = None) -> SignalState:
         """
         Returns the dynamically evaluated current signal state based on elapsed time.
@@ -235,6 +244,7 @@ class Orchestrator:
 
         decision: Optional[SignalDecision] = None
         signal_state: Optional[SignalState] = None
+        decided_by_engine = False
 
         try:
             # 1. Invoke Decision Engine or use Manual Override
@@ -243,6 +253,7 @@ class Orchestrator:
                 logger.info(f"Applying manual override decision: {decision.selected_lane}")
             else:
                 decision = self.decision_adapter.decide(state)
+                decided_by_engine = True
                 
             self.state_store.set_decision(decision)
             
@@ -337,8 +348,12 @@ class Orchestrator:
             # Dedicated approach for emergency or manual override
             target_lanes = [decision.selected_lane]
         else:
-            # Map to compatible concurrent corridor group (e.g. NORTH+SOUTH or EAST+WEST)
-            phase_group = get_compatible_phase_for_lane(decision.selected_lane)
+            # Map to the lane's phase group: its own protected phase (single-approach
+            # phasing) or its NORTH+SOUTH / EAST+WEST corridor (paired phasing)
+            phase_group = get_compatible_phase_for_lane(
+                decision.selected_lane,
+                single_approach=self.virtual_controller.config.SINGLE_APPROACH_PHASING,
+            )
             target_lanes = sorted(list(phase_group.green_lanes), key=lambda l: l.value)
 
         # 3. Perform Safety Validation
@@ -381,12 +396,19 @@ class Orchestrator:
         )
         self.state_store.add_event(safe_evt)
 
+        # A decision for the lane already GREEN only extends it; it does not start a new phase
+        sm = self.virtual_controller.state_machine
+        extends_current_green = bool(
+            decision and sm.phase == SignalPhase.GREEN and decision.selected_lane in sm.active_lanes
+        )
+
         # 4. Virtual Signal Controller Execution based on Validation Result
         if is_approved and decision:
             signal_state = self.virtual_controller.execute_decision(
                 target_lane=target_lanes,
                 duration=decision.duration,
                 current_time=now,
+                preempt_target=decision.priority in (Priority.EMERGENCY, Priority.MANUAL),
             )
             self._update_signal_state(signal_state, now)
 
@@ -421,7 +443,15 @@ class Orchestrator:
             signal_state = self.virtual_controller.advance_time(now)
             self._update_signal_state(signal_state, now)
 
-        # 5. Broadcast updated unified snapshot via WebSocket
+        # 5. The engine counts each decision as one served phase. Keep its waiting/skip
+        #    bookkeeping only when the decision starts a new phase the controller will serve;
+        #    discard it for green extensions and for decisions that are not served.
+        if decided_by_engine and decision and (
+            extends_current_green or not self._is_decision_adopted(decision, signal_state)
+        ):
+            self.decision_adapter.discard_last_decision()
+
+        # 6. Broadcast updated unified snapshot via WebSocket
         await self.websocket_manager.broadcast_snapshot(
             traffic_state=self.state_store.get_traffic_state(),
             signal_decision=self.state_store.get_decision(),

@@ -17,7 +17,8 @@ def orchestrator():
     
     # Configure controller for fast testing
     from controller.config import ControllerConfig
-    config = ControllerConfig(MIN_GREEN_SECONDS=5, MAX_GREEN_SECONDS=30, YELLOW_SECONDS=3, ALL_RED_SECONDS=2)
+    config = ControllerConfig(MIN_GREEN_SECONDS=5, MAX_GREEN_SECONDS=30, YELLOW_SECONDS=3, ALL_RED_SECONDS=2,
+                              SINGLE_APPROACH_PHASING=False)
     virtual_controller = VirtualSignalController(config=config)
     fallback_controller = FallbackController()
     
@@ -30,6 +31,7 @@ def orchestrator():
         fallback_controller=fallback_controller,
     )
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_measurement_lifecycle(orchestrator):
     state_store = orchestrator.state_store
     
@@ -129,6 +131,7 @@ def test_measurement_lifecycle(orchestrator):
     assert m.wait_avg_after == 1.0 # (2.0 + 0.0) / 2
     assert m.wait_max_after == 2.0
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_measurement_without_tracking(orchestrator):
     state_store = orchestrator.state_store
     

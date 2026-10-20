@@ -1,6 +1,7 @@
 """
 Unit tests for VirtualSignalController and SignalStateMachine.
 """
+import pytest
 
 from models import Lane, SignalColor, SignalPhase
 from controller import VirtualSignalController
@@ -19,6 +20,7 @@ def test_initial_state_is_all_red():
     assert len(state.active_lanes) == 0
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_execute_decision_concurrent_ns_transition():
     """Verify executing concurrent decision transitions controller from ALL_RED to target NS GREEN."""
     vc = VirtualSignalController()
@@ -33,6 +35,7 @@ def test_execute_decision_concurrent_ns_transition():
     assert state.west == SignalColor.RED
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_execute_decision_concurrent_ew_transition():
     """Verify executing concurrent decision transitions controller to EW GREEN."""
     vc = VirtualSignalController()
@@ -47,6 +50,7 @@ def test_execute_decision_concurrent_ew_transition():
     assert state.west == SignalColor.GREEN
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_execute_decision_switching_corridor_triggers_yellow_clearance():
     """Verify switching from NS GREEN to EW GREEN triggers concurrent YELLOW clearance on NS first."""
     vc = VirtualSignalController()
@@ -124,6 +128,7 @@ def test_dynamic_time_evaluation_and_countdown():
     assert state2.phase == SignalPhase.GREEN
     assert state2.remaining_seconds == 10
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_dynamic_catchup_transitions():
     """Verify that get_current_signal_state automatically catches up to target green."""
     vc = VirtualSignalController()
@@ -147,6 +152,7 @@ def test_dynamic_catchup_transitions():
     assert state.remaining_seconds == 20 # 25 - 5 elapsed in GREEN phase
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_execute_decision_rejects_conflicting_lanes_without_mutation():
     """Verify executing conflicting target lanes rejects safely without mutating state."""
     vc = VirtualSignalController()
@@ -166,6 +172,7 @@ def test_execute_decision_rejects_conflicting_lanes_without_mutation():
     assert state2.remaining_seconds == 15
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_emergency_maintains_clearance_transitions():
     """Verify emergency requests still follow safe clearance intervals."""
     vc = VirtualSignalController()
@@ -202,6 +209,7 @@ def test_manual_control_single_lane_safe():
     assert state.phase == SignalPhase.GREEN
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_same_phase_decision_does_not_reset_phase_start_time():
     """T6: Repeated same-phase decision does NOT change phase_start_time."""
     vc = VirtualSignalController()
@@ -218,6 +226,7 @@ def test_same_phase_decision_does_not_reset_phase_start_time():
     assert vc.state_machine.phase_start_time == original_start_time
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_cumulative_green_triggers_yellow_at_max():
     """T7: Cumulative elapsed green reaches MAX_GREEN despite repeated same-phase decisions."""
     vc = VirtualSignalController()
@@ -234,6 +243,7 @@ def test_cumulative_green_triggers_yellow_at_max():
     assert set(state.active_lanes) == {Lane.NORTH, Lane.SOUTH}
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_max_green_elapsed_same_phase_repeat():
     """T8: Repeated same-phase decisions near MAX_GREEN cannot extend beyond the cumulative ceiling."""
     vc = VirtualSignalController()
@@ -270,6 +280,7 @@ def test_fallback_not_affected_by_continuous_green_fix():
     assert state2.phase == SignalPhase.YELLOW
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_repeated_decision_preserves_clearance_timing():
     """Verify repeated 1 Hz execute_decision calls preserve YELLOW and ALL_RED durations."""
     vc = VirtualSignalController()
@@ -320,6 +331,7 @@ def test_repeated_decision_preserves_clearance_timing():
     assert ConflictMatrix.is_safe_signal_state(s_green) is True
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_long_idle_all_red_fresh_green_start():
     """Verify after a long idle ALL_RED, a new GREEN starts fresh at the current time.
     Specifically tests the is_phase_complete() branch of ALL_RED recovery.

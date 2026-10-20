@@ -120,6 +120,7 @@ def mock_hardware_transport():
     core.physical_adapter.transport = old_transport
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_wp16_backend_to_adapter_e2e(mock_hardware_transport):
     """
     WP16.1: Drive deterministic traffic through real API, verify decision, safety,

@@ -1,6 +1,7 @@
 """
 Unit tests for SafetyValidator service.
 """
+import pytest
 
 from models import TrafficState, SignalDecision, Lane, Priority
 from safety.validator import SafetyValidator
@@ -84,6 +85,7 @@ def test_validator_fallback_stale_traffic_data():
     assert res.status == ValidationStatus.FALLBACK
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_validator_approved_valid_target_lanes():
     """Verify SafetyValidator approves valid target lanes like [NORTH, SOUTH]."""
     validator = SafetyValidator()

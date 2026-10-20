@@ -1,6 +1,7 @@
 """
 Unit tests for ConflictMatrix and safe compatible phase group invariants.
 """
+import pytest
 
 from models import Lane, SignalColor, SignalPhase, SignalState
 from safety.conflicts import ConflictMatrix
@@ -18,6 +19,7 @@ def test_conflict_matrix_single_green_pass():
     assert len(conflicts) == 0
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_conflict_matrix_concurrent_ns_green_pass():
     """Verify concurrent green on North + South satisfies conflict matrix invariant."""
     colors = {
@@ -30,6 +32,7 @@ def test_conflict_matrix_concurrent_ns_green_pass():
     assert len(conflicts) == 0
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_conflict_matrix_concurrent_ew_green_pass():
     """Verify concurrent green on East + West satisfies conflict matrix invariant."""
     colors = {
@@ -101,6 +104,7 @@ def test_conflict_matrix_arbitrary_multi_green_rejected():
     assert len(c_4) == 1
 
 
+@pytest.mark.usefixtures("paired_phasing")
 def test_is_safe_signal_state():
     """Verify is_safe_signal_state helper on canonical SignalState."""
     # Safe concurrent NS state
