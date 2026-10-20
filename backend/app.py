@@ -29,6 +29,8 @@ from backend.runtime import (
 from backend.api.endpoints import create_endpoints_router
 from backend.api.legacy import create_legacy_router, _approach_lane_states, _approach_emergencies, _approach_lock
 from backend.api.websocket import create_websocket_router
+from backend.api.scan import create_scan_router
+from backend.manual_scan import ManualScanManager, ScanSettings
 
 logger = logging.getLogger("aegisflow.backend")
 
@@ -65,6 +67,19 @@ legacy_router = create_legacy_router(
     get_simulated_emergency=lambda: core.simulated_emergency,
     decision_event=core._decision_event,
     logger=logger
+)
+
+scan_manager = ManualScanManager(
+    orchestrator=core.orchestrator,
+    camera_manager=camera_manager,
+    vision_adapter=core.vision_adapter,
+    frame_store=core.frame_store,
+    settings=ScanSettings.from_config(core.cfg),
+)
+
+scan_router = create_scan_router(
+    scan_manager=scan_manager,
+    get_default_source=lambda: core.cfg.get("camera_source", 0),
 )
 
 websocket_router = create_websocket_router(
@@ -107,7 +122,8 @@ async def lifespan(app: FastAPI):
     if hasattr(core, 'physical_adapter') and core.physical_adapter:
         core.physical_adapter.stop()
         
-    # Clean shutdown of camera runtime
+    # Clean shutdown of camera runtime and four-direction scan
+    await scan_manager.stop()
     if camera_manager:
         await camera_manager.shutdown()
         
@@ -142,6 +158,7 @@ def read_root():
 app.include_router(endpoints_router)
 app.include_router(legacy_router)
 app.include_router(websocket_router)
+app.include_router(scan_router)
 
 
 # ==========================================

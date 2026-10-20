@@ -8,10 +8,10 @@ Canonical TrafficState -> Decision Engine -> SignalDecision -> SafetyValidator -
 import time
 import uuid
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Tuple
 from models import TrafficState, SignalDecision, SignalState, Event, EventSeverity, EventCategory, SystemStatus, Status, SystemMode, Lane, Priority, SignalPhase, ServiceMeasurement, SourceType, VisionStatus
-from safety import SafetyValidator, FallbackController, ValidationStatus, get_compatible_phase_for_lane
-from safety.rules import check_traffic_data_freshness
+from safety import SafetyValidator, FallbackController, ValidationStatus, ConflictMatrix, get_compatible_phase_for_lane
+from safety.rules import check_traffic_data_freshness, check_lane_validity, check_duration_bounds
 from controller import VirtualSignalController
 from .state_store import StateStore
 from .decision_adapter import DecisionEngineAdapter
@@ -44,6 +44,8 @@ class Orchestrator:
         self.active_override: Optional[SignalDecision] = None
         self._last_signal_state: Optional[SignalState] = None
         self._active_measurement: Optional[ServiceMeasurement] = None
+        # One bounded GREEN started from an operator-applied four-direction scan
+        self._scan_cycle: Optional[Dict[str, Any]] = None
 
     def _update_signal_state(self, new_state: SignalState, current_time: float) -> SignalState:
         old_state = self._last_signal_state
@@ -198,6 +200,149 @@ class Orchestrator:
             return True
         return decision.selected_lane in (signal_state.target_lanes or [])
 
+    # ------------------------------------------------------------------
+    # Four-direction scan cycle
+    # ------------------------------------------------------------------
+    # A manual scan has no live perception, so the normal rule (no live input ->
+    # ALL_RED) would block it. Instead an operator may apply a complete, recent scan
+    # as exactly ONE GREEN for one approach. While that GREEN runs the stale-input
+    # rule is suspended; when it ends (or is cancelled) the rule applies again and
+    # clears YELLOW -> ALL_RED. The scan gate (age, completeness, one use per scan)
+    # lives in ManualScanManager; the signal-side checks live here.
+
+    def can_start_scan_cycle(self, current_time: float) -> Tuple[bool, Optional[str]]:
+        """Signal-side preconditions for starting a scan cycle."""
+        if self._scan_cycle is not None:
+            return False, "A scan cycle is already running"
+        if self.active_override is not None:
+            return False, "Manual override is active"
+        if self.state_store.get_active_emergency() is not None:
+            return False, "Emergency preemption is active"
+        status = self.state_store.get_system_status()
+        if status.camera != SourceType.NO_INPUT and status.vision == VisionStatus.PROCESSING:
+            return False, "Live perception is running; stop it before applying a scan"
+        sm = self.virtual_controller.state_machine
+        clearance_done = sm.phase_duration == 0 or sm.is_phase_complete(current_time)
+        if sm.phase != SignalPhase.ALL_RED or not clearance_done or sm.target_lanes:
+            return False, "Waiting for the signals to finish clearing to ALL RED"
+        return True, None
+
+    def start_scan_cycle(
+        self,
+        lane: Lane,
+        duration: int,
+        reasons: List[str],
+        scan_id: str,
+        scan_age_seconds: float,
+        max_age_seconds: float,
+        current_time: float,
+    ) -> SignalState:
+        """Starts ONE GREEN for a single approach from an applied scan, then lets it clear to ALL_RED."""
+        ok, reason = self.can_start_scan_cycle(current_time)
+        if not ok:
+            raise ValueError(reason)
+        config = self.virtual_controller.config
+        problems = (
+            check_lane_validity(lane)
+            + check_duration_bounds(duration, config)
+            + ConflictMatrix.check_target_lanes([lane], config)
+        )
+        if problems:
+            raise ValueError("; ".join(problems))
+
+        decision = SignalDecision(
+            decision_id=f"dec-scan-{uuid.uuid4().hex[:8]}",
+            timestamp=current_time,
+            selected_lane=lane,
+            duration=duration,
+            priority=Priority.MANUAL,
+            reasons=[f"Four-direction scan {scan_id} applied by operator"] + list(reasons),
+        )
+        self.state_store.set_decision(decision)
+
+        signal_state = self.virtual_controller.execute_decision(
+            target_lane=[lane], duration=duration, current_time=current_time, preempt_target=True
+        )
+        sm = self.virtual_controller.state_machine
+        self._scan_cycle = {
+            "scan_id": scan_id,
+            "lane": lane,
+            "started_at": current_time,
+            "green_until": sm.phase_start_time + sm.phase_duration,
+        }
+
+        safety_reasons = [
+            f"Scan {scan_id}: oldest capture {scan_age_seconds:.0f}s old (limit {max_age_seconds:.0f}s).",
+            f"Single approach {lane.value.upper()} only; all other approaches held RED.",
+            f"One GREEN of {sm.phase_duration}s, then YELLOW and ALL RED. A new scan is required for the next cycle.",
+        ]
+        self.state_store.set_safety_result({
+            "status": "APPROVED",
+            "approved": True,
+            "reasons": safety_reasons,
+            "proposed_lane": lane.value,
+            "proposed_duration": sm.phase_duration,
+        })
+        self.state_store.add_event(Event(
+            event_id=f"ev-scan-{uuid.uuid4().hex[:8]}",
+            timestamp=current_time,
+            type="SCAN_CYCLE_STARTED",
+            category=EventCategory.SAFETY,
+            severity=EventSeverity.WARNING,
+            message=f"Scan cycle started: {lane.value.upper()} GREEN {sm.phase_duration}s. {safety_reasons[0]}",
+            source="ManualScan",
+            target_lanes=[lane],
+            decision_id=decision.decision_id,
+        ))
+        return self._update_signal_state(signal_state, current_time)
+
+    def cancel_scan_cycle(self, current_time: float) -> None:
+        """Ends a running scan cycle early; the signals then clear to ALL_RED."""
+        if self._scan_cycle is None:
+            return
+        lane = self._scan_cycle["lane"]
+        self._scan_cycle = None
+        self.state_store.add_event(Event(
+            event_id=f"ev-scan-{uuid.uuid4().hex[:8]}",
+            timestamp=current_time,
+            type="SCAN_CYCLE_CANCELLED",
+            category=EventCategory.SAFETY,
+            severity=EventSeverity.WARNING,
+            message=f"Scan cycle for {lane.value.upper()} cancelled. Clearing to ALL RED.",
+            source="ManualScan",
+            target_lanes=[lane],
+        ))
+        self.get_current_signal_state(current_time)
+
+    def scan_cycle_status(self, current_time: float) -> Optional[Dict[str, Any]]:
+        if self._scan_cycle is None:
+            return None
+        return {
+            "scan_id": self._scan_cycle["scan_id"],
+            "lane": self._scan_cycle["lane"].value,
+            "started_at": self._scan_cycle["started_at"],
+            "green_remaining_seconds": max(0, int(round(self._scan_cycle["green_until"] - current_time))),
+        }
+
+    def _scan_cycle_active(self, current_time: float) -> bool:
+        if self._scan_cycle is None:
+            return False
+        if current_time < self._scan_cycle["green_until"]:
+            return True
+        lane = self._scan_cycle["lane"]
+        self._scan_cycle = None
+        self.state_store.add_event(Event(
+            event_id=f"ev-scan-{uuid.uuid4().hex[:8]}",
+            timestamp=current_time,
+            type="SCAN_CYCLE_COMPLETED",
+            category=EventCategory.SAFETY,
+            severity=EventSeverity.INFO,
+            message=f"Scan cycle GREEN for {lane.value.upper()} complete. Clearing to ALL RED; rescan for the next cycle.",
+            source="ManualScan",
+            target_lanes=[lane],
+        ))
+        return False
+
     def get_current_signal_state(self, current_time: Optional[float] = None) -> SignalState:
         """
         Returns the dynamically evaluated current signal state based on elapsed time.
@@ -222,7 +367,10 @@ class Orchestrator:
             if now - traffic_state.timestamp > self.safety_validator.config.STALE_DATA_SECONDS:
                 is_stale = True
 
-        if is_input_unavailable or is_stale:
+        if self._scan_cycle_active(now):
+            # Operator-applied scan cycle: let its single bounded GREEN run
+            new_state = self.virtual_controller.get_current_signal_state(now)
+        elif is_input_unavailable or is_stale:
             # Safely force ALL_RED and do not execute fallback mode
             new_state = self.virtual_controller.force_all_red(now)
         elif status.mode == SystemMode.FALLBACK:
@@ -246,6 +394,8 @@ class Orchestrator:
         """
         now = time.time()
         logger.info(f"Orchestrator processing TrafficState (timestamp={state.timestamp}, source={state.source})")
+        # Live / submitted perception takes over from any operator-applied scan cycle
+        self.cancel_scan_cycle(now)
         self.state_store.set_traffic_state(state)
 
         decision: Optional[SignalDecision] = None
